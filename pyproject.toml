@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loki"
+version = "0.0.1"
+description = "Implementation of 'LoKI: Low-damage Knowledge Implanting of Large Language Models'"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}    # 或使用文件路径 license = {file = "LICENSE"}
+dependencies = [
+    "transformers",
+    "huggingface_hub[hf_xet]",
+    "accelerate",
+    "peft",
+    "h5py",
+    "safetensors",
+    "numpy",
+    "datasets",
+    "tqdm",
+    "torch"
+]
