@@ -1,10 +1,5 @@
 # LoKI: Low-damage Knowledge Implanting of Large Language Models
 
-This Supplementary Material includes the following contents:
-- **LoKI code**, which supports reproducing the experiments in the paper
-- **ToolACE dataset**, which is a reformatted version of the [ToolACE dataset](https://huggingface.co/datasets/Team-ACE/ToolACE) publicly available on Hugging Face
-- **Trainable node JSON files based on KVA results**. Due to file size limitations, the HDF5 files recording the KVA results are not included here
-- **Appendix**
 
 ## Usage
 
