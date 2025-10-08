@@ -8,7 +8,7 @@ version = "0.0.1"
 description = "Implementation of 'LoKI: Low-damage Knowledge Implanting of Large Language Models'"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE"}    # 或使用文件路径 license = {file = "LICENSE"}
+license = { file = "LICENSE" } # 或使用文件路径 license = {file = "LICENSE"}
 dependencies = [
     "transformers",
     "huggingface_hub[hf_xet]",
@@ -19,5 +19,6 @@ dependencies = [
     "numpy",
     "datasets",
     "tqdm",
-    "torch"
+    "torch",
+    "captum",
 ]
