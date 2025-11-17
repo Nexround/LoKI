@@ -31,14 +31,14 @@ source .venv/bin/activate  # Then run commands normally
 ## Architecture & Key Components
 
 ### Three-Phase Pipeline
-1. **KVA (Knowledge-Value Attribution)**: Uses integrated gradients to identify which neurons in MLP down-projection layers are most critical for specific knowledge domains
+1. **KVA (Knowledge-Value Attribution)**: Uses Captum's LayerIntegratedGradients to identify which neurons in MLP down-projection layers are most critical for specific knowledge domains
 2. **Selection**: Applies Layer-Balanced Strategy to choose trainable neurons from KVA results, generating position JSON files
 3. **Implanting**: Fine-tunes only selected neurons using LlamaFactory while freezing everything else
 
 ### Core Model Classes
 - **`LoKILinear`** (`src/loki/loki_linear.py`): Custom Linear layer that splits weights into `active` (trainable) and `frozen` (fixed) portions based on neuron positions. Uses pre-computed index mapping for efficient reordering during forward pass.
 - **`LoKILlamaForCausalLM`/`LoKIQwenForCausalLM`** (`src/loki/loki_llama_model.py`, `loki_qwen_model.py`): Modified Transformers models that replace MLP `down_proj` layers with LoKILinear. Config requires `target_pos` list matching layer count.
-- **`KVALlamaForCausalLM`/`KVAQwenForCausalLM`** (`src/loki/kva/kva_llama.py`, `kva_qwen2.py`): Analysis models for computing integrated gradients. Only `down_proj.weight` requires gradients. Implements `forward_with_partitioning()` (default, memory-intensive) and `forward_with_partitioning_single()` (fallback for 80GB+ models).
+- **`KVALlamaForCausalLM`/`KVAQwenForCausalLM`** (`src/loki/kva/kva_llama.py`, `kva_qwen2.py`): Analysis models using Captum's LayerIntegratedGradients for computing attributions. Only `down_proj.weight` requires gradients. Supports various integration methods (`riemann_trapezoid`, `gausslegendre`, etc.) via `--ig_method` argument.
 
 ### Configuration Pattern
 LoKI configs extend base model configs (e.g., `LlamaConfig`) with `target_pos` field:
@@ -60,12 +60,18 @@ make analysing_mmlu_qwen2
 make analysing_mmlu_llama
 
 # Or run directly with uv:
-uv run accelerate launch --mixed_precision bf16 analyse_mmlu_llama.py --model_path meta-llama/Llama-3.1-8B-Instruct ...
+uv run accelerate launch --mixed_precision bf16 analyse_mmlu_llama.py \
+    --model_path meta-llama/Llama-3.1-8B-Instruct \
+    --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct \
+    --steps 7 \
+    --result_file kva_mmlu.h5 \
+    --write_mode w \
+    --ig_method riemann_trapezoid
 ```
 - **Single GPU only** - no multi-GPU support
-- **Memory**: 80GB GPU recommended for 8B+ models; use `forward_with_partitioning_single()` fallback if OOM
+- **Captum-based**: Uses LayerIntegratedGradients for robust and efficient computation
+- **Integration methods**: `riemann_trapezoid` (default), `gausslegendre`, `riemann_left`, `riemann_right`, `riemann_middle`
 - Outputs: HDF5 file in `kva_result/hdf5/<model_name>/kva_mmlu.h5` containing integrated gradient tensors (shape: `[num_samples, num_layers, hidden_dim]`)
-- Edit `analyse_mmlu_llama.py` or `analyse_mmlu_qwen2.py` to switch methods if memory constrained
 
 ### Generating LoKI Models
 Use `utils.ipynb` with `create_loki_model()`:
@@ -120,9 +126,10 @@ uv sync                        # Install LoKI dependencies
 ```
 
 ### Memory Optimization
-When encountering OOM during KVA:
-1. Use 80GB+ GPU if available
-2. Switch to `forward_with_partitioning_single()` in analysis scripts (single-layer gradient computation vs. parallel)
+Captum's LayerIntegratedGradients handles memory efficiently. For very large models:
+1. Reduce `--steps` parameter (default: 7)
+2. Use smaller batch sizes
+3. Use `--ig_method gausslegendre` for potentially better memory efficiency
 
 ### Data Flow
 MMLU → KVA Analysis (HDF5) → `analysing_utils.ipynb` (Layer-Balanced Selection) → Position JSON → `utils.ipynb` (LoKI Model Creation) → LlamaFactory Training
@@ -133,7 +140,12 @@ MMLU → KVA Analysis (HDF5) → `analysing_utils.ipynb` (Layer-Balanced Selecti
 Splits `out_features` dimension into active/frozen based on `target_pos`. Forward pass: compute both portions, concatenate, then reorder using buffered `index_map` to restore original neuron ordering.
 
 ### Integrated Gradients Implementation
-`generate_partitioning()` creates linear interpolation between zero baseline and actual activation across `steps` steps. Gradients computed w.r.t. intermediate activations, then summed and scaled by step size.
+Uses Captum's LayerIntegratedGradients. Baselines are zero tensors. Supports multiple approximation methods:
+- `riemann_trapezoid` (default): Trapezoidal rule approximation
+- `gausslegendre`: Gauss-Legendre quadrature (better accuracy, similar memory)
+- `riemann_left`, `riemann_right`, `riemann_middle`: Left/right/middle Riemann sums
+
+Attributions computed for all `down_proj` layers in parallel, then aggregated per layer.
 
 ### Freezing Strategy
 All model parameters frozen except `down_proj.weight` in target layers. During training, only `active` portion of LoKILinear updates.

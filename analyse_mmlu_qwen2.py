@@ -1,3 +1,18 @@
+"""
+MMLU Analysis Script for Qwen2 using Captum-based Integrated Gradients.
+
+This implementation uses Captum's LayerIntegratedGradients for robust 
+and efficient IG computation.
+
+Usage:
+    uv run accelerate launch --mixed_precision bf16 analyse_mmlu_qwen2.py \
+        --model_path Qwen/Qwen2.5-0.5B-Instruct \
+        --output_dir ./kva_result/hdf5/Qwen2.5-0.5B-Instruct \
+        --result_file kva_mmlu.h5 \
+        --write_mode w \
+        --steps 10
+"""
+
 import random
 import time
 import argparse
@@ -11,8 +26,10 @@ from transformers import AutoTokenizer
 
 from src.loki.kva import KVAQwen2ForCausalLM, save_tensor_to_hdf5
 
+
 mmlu_all_sets = [
     "college_biology",
+    "professional_law",
     "college_chemistry",
     "college_computer_science",
     "college_mathematics",
@@ -33,7 +50,6 @@ mmlu_all_sets = [
     "moral_scenarios",
     "computer_security",
     "high_school_microeconomics",
-    "professional_law",
     "medical_genetics",
     "professional_psychology",
     "jurisprudence",
@@ -72,63 +88,132 @@ mmlu_all_sets = [
 ]
 
 
-def build_conversation(subset, train_samples, test_sample):
+def build_conversation(subset, test_sample):
+    """Build conversation prompt for MMLU question."""
     subject = subset.replace("_", " ").title()
-    conversation = []
-    for example in train_samples:
-        question = f"There is a single choice question about {subject}. Answer the question by replying A, B, C or D.\n"
-        question += f"Question: {example['question']}\nChoices:\n"
-        question += "\n".join(
-            [f"{chr(65 + i)}. {choice}" for i, choice in enumerate(example["choices"])]
-        )
-        human_msg = {"role": "user", "content": question + "\nAnswer: \n"}
-        bot_msg = {"role": "assistant", "content": f"{chr(65 + example['answer'])}\n"}
-        conversation.extend([human_msg, bot_msg])
-    test_question = f"There is a single choice question about {subject}. Answer the question by replying A, B, C or D.\n"
-    test_question += f"Question: {test_sample['question']}\nChoices:\n"
-    test_question += "\n".join(
-        [f"{chr(65 + i)}. {choice}" for i, choice in enumerate(test_sample["choices"])]
-    )
-    conversation.append({"role": "user", "content": test_question + "\nAnswer: \n"})
-    return conversation
+    user_msg = {
+        "role": "user",
+        "content": (
+            f"There is a single choice question about {subject}. "
+            "Answer the question by replying A, B, C or D.\n"
+            f"Question: {test_sample['question']}\n"
+            f"Choices:\n"
+            + "\n".join(
+                [
+                    f"{chr(65 + i)}. {choice}"
+                    for i, choice in enumerate(test_sample["choices"])
+                ]
+            )
+            + "\nAnswer: \n"
+        ),
+    }
+    return [user_msg]
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model_path", type=str, required=True)
-    parser.add_argument("--output_dir", type=str, required=True)
-    parser.add_argument("--max_seq_length", type=int, default=128)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--steps", type=int, default=10)
-    parser.add_argument("--result_file", type=str)
-    parser.add_argument("--write_mode", type=str)
+    parser = argparse.ArgumentParser(
+        description="Analyze MMLU dataset using Captum-based Integrated Gradients for Qwen2"
+    )
+    parser.add_argument(
+        "--model_path", type=str, required=True, help="Path to pretrained Qwen2 model"
+    )
+    parser.add_argument(
+        "--output_dir", type=str, required=True, help="Output directory for HDF5 files"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for reproducibility"
+    )
+    parser.add_argument(
+        "--steps",
+        type=int,
+        default=10,
+        help="Number of integration steps for IG computation",
+    )
+    parser.add_argument(
+        "--result_file", type=str, required=True, help="Name of output HDF5 file"
+    )
+    parser.add_argument(
+        "--write_mode",
+        type=str,
+        default="w",
+        choices=["w", "a"],
+        help="HDF5 write mode: 'w' (overwrite) or 'a' (append)",
+    )
+    parser.add_argument(
+        "--ig_method",
+        type=str,
+        default="riemann_trapezoid",
+        choices=[
+            "riemann_trapezoid",
+            "riemann_left",
+            "riemann_right",
+            "riemann_middle",
+            "gausslegendre",
+        ],
+        help="Integration method for Captum IG",
+    )
+    parser.add_argument(
+        "--use_flash_attention",
+        action="store_true",
+        help="Use Flash Attention 2 for faster inference",
+    )
     args = parser.parse_args()
 
+    # Set random seeds
     device = torch.device("cuda")
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
+
+    # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
+
+    print("=" * 80)
+    print("MMLU Analysis with Captum Integrated Gradients (Qwen2)")
+    print("=" * 80)
+    print(f"Model: {args.model_path}")
+    print(f"Output: {os.path.join(args.output_dir, args.result_file)}")
+    print(f"Integration steps: {args.steps}")
+    print(f"Integration method: {args.ig_method}")
+    print(f"Device: {device}")
+    print("=" * 80)
+
+    print("\n***** Clearing CUDA cache *****")
     torch.cuda.empty_cache()
 
-    model = KVAQwen2ForCausalLM.from_pretrained(
-        args.model_path, torch_dtype=torch.bfloat16, device_map="auto"
-    )
+    # Load model with Captum-based KVA
+    print(f"\n***** Loading model: {args.model_path} *****")
+    model_kwargs = {
+        "dtype": torch.bfloat16,
+        "device_map": "auto",
+    }
+
+    if args.use_flash_attention:
+        model_kwargs["attn_implementation"] = "flash_attention_2"
+        print("Using Flash Attention 2")
+
+    model = KVAQwen2ForCausalLM.from_pretrained(args.model_path, **model_kwargs)
+
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-    model = torch.compile(model)
+
+    # Compile model for better performance (optional)
+    # model = torch.compile(model)  # Uncomment if using PyTorch 2.0+
 
     start_time = time.time()
-    for subset in tqdm(mmlu_all_sets, desc="\U0001f4e6"):
+
+    # Process each MMLU subset
+    for subset in tqdm(mmlu_all_sets, desc="📦 MMLU Subsets"):
         dataset = load_dataset("cais/mmlu", subset)
-        test_dataset = dataset["test"].select(range(50))
-        few_shot_samples = dataset["dev"]
+        test_dataset = dataset["test"]
+
         for idx, test_sample in tqdm(
             enumerate(test_dataset),
-            desc=f"\U0001f5c2️ Evaluating {subset}",
+            desc=f"🗂️ Analyzing {subset}",
             total=len(test_dataset),
             leave=False,
         ):
-            conversation = build_conversation(subset, few_shot_samples, test_sample)
+            # Build conversation and tokenize
+            conversation = build_conversation(subset, test_sample)
             inputs = tokenizer.apply_chat_template(
                 conversation,
                 add_generation_prompt=True,
@@ -139,23 +224,47 @@ if __name__ == "__main__":
 
             tic = time.perf_counter()
 
-            logits = model.forward(**inputs, target_token_idx=-1, use_cache=False)
-            predicted_label = int(torch.argmax(logits, dim=-1))
-            print(tokenizer.decode([predicted_label]))
+            # Forward pass to get prediction
+            with torch.no_grad():
+                outputs = model(inputs["input_ids"], inputs["attention_mask"])
+                logits = outputs.logits[:, -1, :]
 
-            model.forward_with_partitioning(
-                target_token_idx=-1, steps=args.steps, predicted_label=predicted_label
+            predicted_label = int(torch.argmax(logits, dim=-1))
+            predicted_token = tokenizer.decode([predicted_label])
+
+            if idx % 10 == 0:  # Print every 10 samples
+                print(f"\nSample {idx}: Predicted token = {predicted_token}")
+
+            # Compute integrated gradients using Captum
+            model.compute_integrated_gradients(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                target_token_idx=-1,
+                predicted_label=predicted_label,
+                steps=args.steps,
+                method=args.ig_method,
             )
 
+            # Save results to HDF5
             save_tensor_to_hdf5(
                 os.path.join(args.output_dir, args.result_file),
                 model.integrated_gradients,
                 args.write_mode,
             )
 
-            print(f"Costing time: {time.perf_counter() - tic:0.4f} seconds")
+            toc = time.perf_counter()
+
+            print(f"Processing time: {toc - tic:.4f} seconds")
+
+            # if idx % 10 == 0:
+            #     print(f"Processing time: {toc - tic:.4f} seconds")
+
+            # Clean up for next sample
             model.clean()
 
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Total costing time: {elapsed_time:.4f} seconds")
+    total_time = time.time() - start_time
+    print("\n" + "=" * 80)
+    print("Analysis completed successfully!")
+    print(f"Total time: {total_time:.2f} seconds ({total_time / 60:.2f} minutes)")
+    print(f"Results saved to: {os.path.join(args.output_dir, args.result_file)}")
+    print("=" * 80)

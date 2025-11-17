@@ -1,197 +1,99 @@
+"""
+KVA Llama Model with Captum-based Integrated Gradients.
+
+Uses Captum's LayerIntegratedGradients to compute attributions for MLP down_proj
+layer outputs, identifying knowledge-bearing neurons.
+"""
+
 from transformers import LlamaForCausalLM
 import torch
 import torch.nn.functional as F
+from captum.attr import LayerIntegratedGradients
+from typing import List
 
 
 class KVALlamaForCausalLM(LlamaForCausalLM):
+    """
+    Llama model for Knowledge-Value Attribution using Captum.
+
+    Uses LayerIntegratedGradients to compute attributions for each down_proj layer.
+    """
+
     def __init__(self, config):
         super().__init__(config)
-        self._intermediate_activations = []
-        self._partitioning_activations = []
-        self._partitioning_step = []
-        self._partitioning_logits = []
         self.integrated_gradients = [None] * self.config.num_hidden_layers
-        self._args = None
-        self._kwargs = None
-        self._new_dict = None
 
+        # Freeze all parameters except down_proj weights
         for param in self.model.parameters():
             param.requires_grad = False
         for layer in self.model.layers:
             layer.mlp.down_proj.weight.requires_grad = True
 
-    def forward(self, target_token_idx, *args, **kwargs):
-        for layer in self.model.layers:
-            layer.mlp.down_proj.weight.requires_grad = True
-        self._args = args
-        self._kwargs = kwargs
-        keys_to_remove = ["input_ids", "attention_mask"]
-        self._new_dict = {k: v for k, v in kwargs.items() if k not in keys_to_remove}
+    def compute_integrated_gradients(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        target_token_idx: int,
+        predicted_label: int,
+        steps: int = 10,
+        method: str = "riemann_trapezoid",
+    ) -> List[torch.Tensor]:
+        """
+        Compute integrated gradients for all down_proj layers using Captum.
 
-        # Hook to capture intermediate activations
-        def hook_fn(module, input, output):
-            self._intermediate_activations.append(output[:, target_token_idx, :])
+        Args:
+            input_ids: Input token IDs [batch_size, seq_len]
+            attention_mask: Attention mask [batch_size, seq_len]
+            target_token_idx: Token position to analyze (-1 for last token)
+            predicted_label: Target class for attribution
+            steps: Number of integration steps
+            method: Integration method ('riemann_trapezoid', 'gausslegendre', etc.)
 
-        hooks = []
-        for layer in self.model.layers:
-            hooks.append(layer.mlp.down_proj.register_forward_hook(hook_fn))
+        Returns:
+            List of attribution tensors, one per layer [hidden_dim]
+        """
+        # Store context for forward functions
+        self._context = {
+            "target_token_idx": target_token_idx,
+            "predicted_label": predicted_label,
+        }
 
-        outputs = super().forward(*args, **kwargs).logits[:, target_token_idx, :]
-        for hook in hooks:
-            hook.remove()
-
-        return outputs
-
-    def forward_with_partitioning_single(
-        self, target_token_idx, steps, predicted_label
-    ):
-        # Generate partitioned activations for all layers
-        for param in self.model.parameters():
-            param.requires_grad = False
-
-        for vec in self._intermediate_activations:
-            partitioning, step = self.generate_partitioning(vec, steps)
-            self._partitioning_activations.append(partitioning)
-            self._partitioning_step.append(step)
-
-        num_layers = self.config.num_hidden_layers
-
-        for layer_idx in range(num_layers):
-            self.model.layers[layer_idx].mlp.down_proj.weight.requires_grad = True
-            layer_activation = self._partitioning_activations[layer_idx]
-            layer_logits = []
-
-            for i in range(steps):
-                single_input_ids = self._kwargs["input_ids"]
-                single_attention_mask = self._kwargs["attention_mask"]
-                single_layer_activation = layer_activation[i].unsqueeze(0)
-
-                hook = self._create_layer_hook(
-                    target_token_idx=target_token_idx,
-                    activations=single_layer_activation,
-                    target=self.model.layers[layer_idx].mlp.down_proj,
+        # Compute IG for each layer independently
+        for layer_idx in range(self.config.num_hidden_layers):
+            # Create forward function that outputs target probability
+            def forward_func(input_ids, attention_mask):
+                outputs = self.model(input_ids, attention_mask)
+                logits = self.lm_head(
+                    outputs.last_hidden_state[:, self._context["target_token_idx"], :]
                 )
+                probs = F.softmax(logits, dim=-1)
+                return probs[:, self._context["predicted_label"]]
 
-                outputs = self.model(
-                    single_input_ids, single_attention_mask, **self._new_dict
-                )
-                single_logits = self.lm_head(
-                    outputs.last_hidden_state[:, target_token_idx, :]
-                )
-                layer_logits.append(single_logits)
-                prob = F.softmax(single_logits, dim=1)
-                target_label_logits = prob[:, predicted_label]
-
-                (gradient,) = torch.autograd.grad(
-                    target_label_logits,
-                    single_layer_activation,
-                    grad_outputs=torch.ones_like(target_label_logits),
-                )
-
-                gradient = gradient.detach().cpu()
-
-                hook.remove()
-                with torch.no_grad():
-                    self.integrated_gradients[layer_idx] = torch.zeros_like(
-                        gradient.squeeze(0)
-                    )
-                    self.integrated_gradients[layer_idx] += (
-                        gradient.squeeze(0) * self._partitioning_step[layer_idx]
-                    )
-
-            self.model.layers[layer_idx].mlp.down_proj.weight.requires_grad = False
-
-        return self._partitioning_logits
-
-    def forward_with_partitioning(self, target_token_idx, steps, predicted_label):
-        # Generate partitioned activations for all layers
-        for param in self.model.parameters():
-            param.requires_grad = False
-
-        for vec in self._intermediate_activations:
-            partitioning, step = self.generate_partitioning(vec, steps)
-            self._partitioning_activations.append(partitioning)
-            self._partitioning_step.append(step)
-
-        num_layers = self.config.num_hidden_layers
-
-        for layer_idx in range(num_layers):
-            self.model.layers[layer_idx].mlp.down_proj.weight.requires_grad = True
-
-            layer_input_ids = self._kwargs["input_ids"].repeat(steps, 1)
-            layer_attention_mask = self._kwargs["attention_mask"].repeat(steps, 1)
-            layer_activation = self._partitioning_activations[layer_idx]
-
-            hook = self._create_layer_hook(
-                target_token_idx=target_token_idx,
-                activations=layer_activation,
-                target=self.model.layers[layer_idx].mlp.down_proj,
+            # Use Captum's LayerIntegratedGradients
+            lig = LayerIntegratedGradients(
+                forward_func=forward_func,
+                layer=self.model.layers[layer_idx].mlp.down_proj,
             )
 
-            outputs = self.model(
-                layer_input_ids, layer_attention_mask, **self._new_dict
-            )
-            layer_logits = self.lm_head(
-                outputs.last_hidden_state[:, target_token_idx, :]
-            )
-
-            self._partitioning_logits.append(layer_logits)
-            hook.remove()
-            self._compute_ig_for_layer(layer_idx, predicted_label)
-            self.model.layers[layer_idx].mlp.down_proj.weight.requires_grad = False
-
-        return self._partitioning_logits
-
-    def _create_layer_hook(self, target_token_idx, activations, target):
-        def hook_fn(module, input, output):
-            output = output.clone()
-            # Replace the corresponding position of all samples in the batch
-            output[:, target_token_idx] = activations
-            return output
-
-        return target.register_forward_hook(hook_fn)
-
-    def generate_partitioning(self, vector, steps):
-        baseline = torch.zeros_like(vector)
-        step = (vector - baseline) / steps
-        partitioning = torch.cat([baseline + step * i for i in range(steps)], dim=0)
-        return partitioning, step[0].detach().cpu()
-
-    def _compute_ig_for_layer(self, i, target_label):
-        prob = F.softmax(self._partitioning_logits[i], dim=1)
-        target_label_logits = prob[:, target_label]
-
-        (gradient,) = torch.autograd.grad(
-            target_label_logits,
-            self._partitioning_activations[i],
-            grad_outputs=torch.ones_like(target_label_logits),
-        )
-
-        gradient = gradient.detach().cpu()
-        with torch.no_grad():
-            self.integrated_gradients[i] = (
-                gradient.sum(dim=0) * self._partitioning_step[i]
+            # Compute attributions - Captum handles everything
+            attributions = lig.attribute(
+                inputs=input_ids,
+                baselines=torch.zeros_like(input_ids),
+                additional_forward_args=(attention_mask,),
+                n_steps=steps,
+                method=method,
+                attribute_to_layer_input=False,  # Attribute to layer output
             )
 
-    def reset_model(self):
-        for param in self.model.parameters():
-            if param.grad is not None:
-                param.grad.detach_()
-                param.grad.zero_()
+            # Extract attribution at target token: [batch, seq_len, hidden] -> [hidden]
+            self.integrated_gradients[layer_idx] = (
+                attributions[0, target_token_idx, :].detach().cpu()
+            )
 
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        return self.integrated_gradients
 
     def clean(self):
-        attrs = [
-            "_intermediate_activations",
-            "_partitioning_activations",
-            "_partitioning_step",
-            "_partitioning_logits",
-            "integrated_gradients",
-        ]
-        for attr in attrs:
-            getattr(self, attr).clear()
+        """Clean up stored data."""
         self.integrated_gradients = [None] * self.config.num_hidden_layers
-        self._args = None
-        self._kwargs = None
+        if hasattr(self, "_context"):
+            del self._context
