@@ -6,7 +6,7 @@ import importlib
 import pytest
 import torch
 import torch.nn as nn
-from transformers import PreTrainedModel, PretrainedConfig
+from transformers import LlamaConfig, PreTrainedModel, PretrainedConfig
 from loki import models as registry
 from loki.models import registry as registry_module
 
@@ -50,34 +50,33 @@ class DummyModel(PreTrainedModel):
 
 
 def test_auto_register_architecture(monkeypatch):
-    """Auto-registration should create specs for unseen architectures."""
+    """Auto-registration should create specs for real architectures (e.g., Llama)."""
 
     # Isolate registry state
     monkeypatch.setattr(registry_module, "_REGISTRY", {}, raising=False)
 
-    # Stub AutoConfig and AutoModel to return dummy classes
-    monkeypatch.setattr(
-        registry_module,
-        "AutoConfig",
-        SimpleNamespace(from_pretrained=lambda *_args, **_kwargs: DummyConfig()),
-    )
-    monkeypatch.setattr(
-        registry_module,
-        "AutoModel",
-        SimpleNamespace(from_config=lambda config: DummyModel(config)),
+    # Use a real Llama configuration with tiny dimensions to avoid heavy init.
+    config = LlamaConfig(
+        hidden_size=32,
+        intermediate_size=64,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        num_key_value_heads=4,
+        vocab_size=128,
+        rms_norm_eps=1e-5,
     )
 
     # Trigger auto-registration via get_loki_model_class
-    loki_cls = registry_module.get_loki_model_class("dummy-checkpoint")
-    kva_cls = registry_module.get_kva_model_class("dummy-checkpoint")
+    loki_cls = registry_module.get_loki_model_class(config)
+    kva_cls = registry_module.get_kva_model_class(config)
 
     # The classes should be generated and cached
-    assert loki_cls.__name__.startswith("LoKIDummy")
-    assert kva_cls.__name__.startswith("KVADummy")
+    assert loki_cls.__name__.startswith("LoKILlama")
+    assert kva_cls.__name__.startswith("KVALlama")
 
-    # Their configs should carry target_pos attribute
-    cfg_cls = registry_module.get_loki_config_class("dummy-checkpoint")
-    cfg = cfg_cls(target_pos=[[], []], hidden_size=8, num_hidden_layers=2)
+    # Their configs should carry target_pos attribute and inherit base config fields
+    cfg_cls = registry_module.get_loki_config_class(config)
+    cfg = cfg_cls(target_pos=[[], []], hidden_size=32, num_hidden_layers=2, num_attention_heads=4, num_key_value_heads=4, intermediate_size=64, vocab_size=128, rms_norm_eps=1e-5)
     assert hasattr(cfg, "target_pos")
     assert cfg.target_pos == [[], []]
 

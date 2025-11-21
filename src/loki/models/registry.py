@@ -16,7 +16,7 @@ from typing import Callable, Iterable, Union
 import torch.nn as nn
 from transformers import (
     AutoConfig,
-    AutoModelForCausalLM,
+    AutoModel,
     LlamaConfig,
     LlamaForCausalLM,
     PreTrainedModel,
@@ -43,7 +43,7 @@ class ArchitectureSpec:
     Args:
         name: Human-readable architecture name (e.g., "Llama")
         model_type: Hugging Face config.model_type string (e.g., "llama")
-        base_model_cls: Hugging Face AutoModelForCausalLM-compatible class
+        base_model_cls: Hugging Face AutoModel-compatible class
         base_config_cls: Hugging Face config class
         loki_config_cls: Config class that includes target_pos (optional; auto-generated if missing)
         mlp_getter: Callback returning the MLP module for a layer
@@ -265,7 +265,7 @@ def _auto_register_architecture(
     base_config_cls = config.__class__
     # Use the causal LM head version so we always have `.model` and `lm_head`
     # attributes that BaseKVAModel expects.
-    model = AutoModelForCausalLM.from_config(config)
+    model = AutoModel.from_config(config)
     base_model_cls = model.__class__
 
     layers = _get_layers(model)
