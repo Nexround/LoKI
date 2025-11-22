@@ -128,7 +128,8 @@ def _build_loki_config(model_type: str) -> type[PretrainedConfig]:
 
     LoKIConfig.__name__ = f"LoKI{spec.name}Config"
     LoKIConfig.__qualname__ = LoKIConfig.__name__
-    LoKIConfig.__module__ = __name__
+    # Set __module__ to base config's module to avoid import resolution issues
+    LoKIConfig.__module__ = base_config_cls.__module__
     return LoKIConfig
 
 
@@ -152,6 +153,8 @@ def _build_loki_wrapper(model_type: str) -> type[PreTrainedModel]:
 
     LoKIWrapper.__name__ = f"LoKI{spec.name}ForCausalLM"
     LoKIWrapper.__qualname__ = LoKIWrapper.__name__
+    # Set __module__ to base model's module to avoid import resolution issues
+    LoKIWrapper.__module__ = spec.base_model_cls.__module__
     return LoKIWrapper
 
 
@@ -173,6 +176,8 @@ def _build_kva_wrapper(model_type: str) -> type[PreTrainedModel]:
 
     KVAWrapper.__name__ = f"KVA{spec.name}ForCausalLM"
     KVAWrapper.__qualname__ = KVAWrapper.__name__
+    # Set __module__ to base model's module to avoid import resolution issues
+    KVAWrapper.__module__ = spec.base_model_cls.__module__
     return KVAWrapper
 
 

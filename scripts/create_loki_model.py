@@ -99,8 +99,7 @@ def main():
 
     # Validate target_pos file exists
     if not args.target_pos_path.exists():
-        logger.error(f"Target position file not found: {args.target_pos_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"Target position file not found: {args.target_pos_path}")
 
     # Get model and config classes
     model_identifier = args.model_type or args.model_name
@@ -118,20 +117,16 @@ def main():
     logger.info(f"  Dtype: {args.torch_dtype}")
 
     # Create LoKI model
-    try:
-        create_loki_model(
-            loki_model_class=loki_model_class,
-            loki_config_cls=loki_config_class,
-            model_name=args.model_name,
-            target_pos_path=str(args.target_pos_path),
-            save_dir=str(args.save_dir),
-            torch_dtype=torch_dtype,
-            trust_remote_code=args.trust_remote_code,
-        )
-        logger.info(f"✓ LoKI model successfully created and saved to {args.save_dir}")
-    except Exception as e:
-        logger.error(f"Failed to create LoKI model: {e}")
-        sys.exit(1)
+    create_loki_model(
+        loki_model_class=loki_model_class,
+        loki_config_cls=loki_config_class,
+        model_name=args.model_name,
+        target_pos_path=str(args.target_pos_path),
+        save_dir=str(args.save_dir),
+        torch_dtype=torch_dtype,
+        trust_remote_code=args.trust_remote_code,
+    )
+    logger.info(f"✓ LoKI model successfully created and saved to {args.save_dir}")
 
 
 if __name__ == "__main__":

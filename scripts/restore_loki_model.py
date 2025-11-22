@@ -70,12 +70,10 @@ def main():
 
     # Validate paths
     if not Path(args.model_path).exists():
-        logger.error(f"LoKI model not found: {args.model_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"LoKI model not found: {args.model_path}")
 
     if not Path(args.target_pos_path).exists():
-        logger.error(f"Target position file not found: {args.target_pos_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"Target position file not found: {args.target_pos_path}")
 
     logger.info("Restoring LoKI model:")
     logger.info(f"  LoKI model: {args.model_path}")
@@ -84,17 +82,13 @@ def main():
     logger.info(f"  Base model: {args.model_name}")
 
     # Restore model
-    try:
-        restore_loki_model(
-            model_path=args.model_path,
-            target_pos_path=args.target_pos_path,
-            output_path=args.output_path,
-            model_name=args.model_name,
-        )
-        logger.info(f"✓ Model successfully restored to {args.output_path}")
-    except Exception as e:
-        logger.error(f"Failed to restore model: {e}")
-        sys.exit(1)
+    restore_loki_model(
+        model_path=args.model_path,
+        target_pos_path=args.target_pos_path,
+        output_path=args.output_path,
+        model_name=args.model_name,
+    )
+    logger.info(f"✓ Model successfully restored to {args.output_path}")
 
 
 if __name__ == "__main__":

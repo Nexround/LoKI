@@ -151,12 +151,10 @@ def run_select_nodes(args: argparse.Namespace) -> int:
     cmd_logger = logging.getLogger("loki.cli.select")
 
     if not 0 < args.quota <= 100:
-        cmd_logger.error("Quota must be between 0 and 100, got %.2f", args.quota)
-        return 1
+        raise ValueError(f"Quota must be between 0 and 100, got {args.quota}")
 
     if not args.hdf5_path.exists():
-        cmd_logger.error("HDF5 file not found: %s", args.hdf5_path)
-        return 1
+        raise FileNotFoundError(f"HDF5 file not found: {args.hdf5_path}")
 
     output_dir = args.output_dir
     if output_dir is None:
@@ -203,14 +201,12 @@ def run_create_model(args: argparse.Namespace) -> int:
     cmd_logger = logging.getLogger("loki.cli.create")
 
     if not args.target_pos_path.exists():
-        cmd_logger.error("Target position file not found: %s", args.target_pos_path)
-        return 1
+        raise FileNotFoundError(f"Target position file not found: {args.target_pos_path}")
 
     try:
         import torch
     except ImportError:
-        cmd_logger.error("PyTorch is required for create-model command")
-        return 1
+        raise ImportError("PyTorch is required for create-model command")
 
     dtype_map = {
         "float32": torch.float32,
@@ -222,12 +218,8 @@ def run_create_model(args: argparse.Namespace) -> int:
     torch_dtype = dtype_map[args.torch_dtype]
     model_identifier = args.model_type or args.model_name
 
-    try:
-        loki_model_class = get_loki_model_class(model_identifier)
-        loki_config_class = get_loki_config_class(model_identifier)
-    except Exception as exc:
-        cmd_logger.error("Failed to resolve model configuration: %s", exc)
-        return 1
+    loki_model_class = get_loki_model_class(model_identifier)
+    loki_config_class = get_loki_config_class(model_identifier)
 
     cmd_logger.info("Creating LoKI model")
     cmd_logger.info("  Model type: %s", args.model_type or "auto")
@@ -236,19 +228,15 @@ def run_create_model(args: argparse.Namespace) -> int:
     cmd_logger.info("  Save directory: %s", args.save_dir)
     cmd_logger.info("  Dtype: %s", args.torch_dtype)
 
-    try:
-        create_loki_model(
-            loki_model_class=loki_model_class,
-            loki_config_cls=loki_config_class,
-            model_name=args.model_name,
-            target_pos_path=args.target_pos_path,
-            save_dir=args.save_dir,
-            torch_dtype=torch_dtype,
-            trust_remote_code=args.trust_remote_code,
-        )
-    except Exception as exc:
-        cmd_logger.exception("Failed to create LoKI model: %s", exc)
-        return 1
+    create_loki_model(
+        loki_model_class=loki_model_class,
+        loki_config_cls=loki_config_class,
+        model_name=args.model_name,
+        target_pos_path=args.target_pos_path,
+        save_dir=args.save_dir,
+        torch_dtype=torch_dtype,
+        trust_remote_code=args.trust_remote_code,
+    )
 
     cmd_logger.info("LoKI model saved to %s", args.save_dir)
     return 0
@@ -259,12 +247,10 @@ def run_restore_model(args: argparse.Namespace) -> int:
     cmd_logger = logging.getLogger("loki.cli.restore")
 
     if not args.model_path.exists():
-        cmd_logger.error("LoKI model not found: %s", args.model_path)
-        return 1
+        raise FileNotFoundError(f"LoKI model not found: {args.model_path}")
 
     if not args.target_pos_path.exists():
-        cmd_logger.error("Target position file not found: %s", args.target_pos_path)
-        return 1
+        raise FileNotFoundError(f"Target position file not found: {args.target_pos_path}")
 
     cmd_logger.info("Restoring LoKI model")
     cmd_logger.info("  LoKI model: %s", args.model_path)
@@ -272,16 +258,12 @@ def run_restore_model(args: argparse.Namespace) -> int:
     cmd_logger.info("  Output path: %s", args.output_path)
     cmd_logger.info("  Base model: %s", args.model_name)
 
-    try:
-        restore_loki_model(
-            model_path=args.model_path,
-            target_pos_path=args.target_pos_path,
-            output_path=args.output_path,
-            model_name=args.model_name,
-        )
-    except Exception as exc:
-        cmd_logger.exception("Failed to restore model: %s", exc)
-        return 1
+    restore_loki_model(
+        model_path=args.model_path,
+        target_pos_path=args.target_pos_path,
+        output_path=args.output_path,
+        model_name=args.model_name,
+    )
 
     cmd_logger.info("Model successfully restored to %s", args.output_path)
     return 0
@@ -321,11 +303,7 @@ def main(argv: list[str] | None = None) -> int:
     level = getattr(logging, args.log_level.upper(), logging.INFO)
     configure_root_logger(level=level)
 
-    try:
-        return args.func(args)
-    except Exception as exc:  # pragma: no cover - defensive catch-all for CLI
-        logger.exception("Unexpected error: %s", exc)
-        return 1
+    return args.func(args)
 
 
 if __name__ == "__main__":

@@ -73,12 +73,8 @@ def create_loki_model(
     # Load the original pretrained model
     logger.info("Loading original pretrained model...")
     original_model = AutoModel.from_pretrained(
-        model_name, torch_dtype=torch_dtype, trust_remote_code=trust_remote_code
+        model_name, dtype=torch_dtype, trust_remote_code=trust_remote_code
     )
-
-    # Register LoKI classes for auto mapping
-    loki_model_class.register_for_auto_class("AutoModel")
-    loki_config_cls.register_for_auto_class()
 
     # Initialize LoKI configuration with specified position indices
     loki_config = loki_config_cls.from_pretrained(model_name, target_pos=target_pos)
@@ -88,10 +84,11 @@ def create_loki_model(
     loki_model = loki_model_class.from_pretrained(
         pretrained_model_name_or_path=model_name,
         config=loki_config,
-        torch_dtype=torch_dtype,
+        dtype=torch_dtype,
         trust_remote_code=trust_remote_code,
     )
-
+    loki_model_class.register_for_auto_class("AutoModel")
+    loki_config_cls.register_for_auto_class()
     # Save LoKI model configuration for Transformers compatibility
     logger.info(f"Saving LoKI model to {save_dir}")
     loki_model.save_pretrained(save_dir)
@@ -165,7 +162,7 @@ def set_zero_weights(
         target_pos = json.load(f)
 
     # Load the original pretrained model
-    original_model = AutoModel.from_pretrained(model_name, torch_dtype=torch_dtype)
+    original_model = AutoModel.from_pretrained(model_name, dtype=torch_dtype)
 
     # Iterate over all transformer layers
     for layer_idx in range(original_model.config.num_hidden_layers):
@@ -217,7 +214,7 @@ def restore_loki_model(
 
     # Load base transformer model
     logger.info("Loading base model architecture...")
-    original_model = AutoModel.from_pretrained(model_name, torch_dtype=torch_dtype)
+    original_model = AutoModel.from_pretrained(model_name, dtype=torch_dtype)
 
     # Initialize tensor dictionary for modified weights
     tensor_dict = {}

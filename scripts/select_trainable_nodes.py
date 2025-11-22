@@ -97,13 +97,11 @@ def main():
 
     # Validate quota range
     if not 0 < args.quota <= 100:
-        logger.error(f"Quota must be between 0 and 100, got {args.quota}")
-        sys.exit(1)
+        raise ValueError(f"Quota must be between 0 and 100, got {args.quota}")
 
     # Validate HDF5 file exists
     if not args.hdf5_path.exists():
-        logger.error(f"HDF5 file not found: {args.hdf5_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"HDF5 file not found: {args.hdf5_path}")
 
     # Auto-detect output directory if not specified
     if args.output_dir is None:

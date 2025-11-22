@@ -362,8 +362,7 @@ def main():
 
     # Check for data parallelism requirements
     if args.parallel_mode == "data" and not ACCELERATE_AVAILABLE:
-        logger.error("Data parallelism requires accelerate library. Install with: pip install accelerate")
-        return
+        raise ImportError("Data parallelism requires accelerate library. Install with: pip install accelerate")
 
     # Initialize accelerator for data parallelism
     accelerator = None
