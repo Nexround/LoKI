@@ -163,3 +163,90 @@ def test_create_loki_model_uses_generated_module(tmp_path, monkeypatch):
     assert type(model.model.layers[0].mlp.down_proj).__name__ == "LoKILinear"
     assert model.model.layers[0].mlp.down_proj.active.weight.requires_grad
     assert not model.lm_head.weight.requires_grad
+
+
+def test_lokilinear_copies_original_weights(tmp_path):
+    # Build a tiny model with deterministic weights/biases to verify cloning.
+    import torch
+
+    class BiasConfig(PretrainedConfig):
+        model_type = "dummy_copy_check"
+
+        def __init__(self, target_pos=None, num_hidden_layers=1, **kwargs):
+            self.target_pos = target_pos or [[] for _ in range(num_hidden_layers)]
+            self.num_hidden_layers = num_hidden_layers
+            super().__init__(model_type=self.model_type, **kwargs)
+
+        @classmethod
+        def from_pretrained(cls, *args, target_pos=None, **kwargs):
+            target_pos = target_pos or kwargs.get(
+                "target_pos", [[] for _ in range(kwargs.get("num_hidden_layers", 1))]
+            )
+            return cls(target_pos=target_pos, num_hidden_layers=len(target_pos))
+
+    class BiasMLP(nn.Module):
+        def __init__(self, hidden_size=4):
+            super().__init__()
+            self.down_proj = nn.Linear(hidden_size, hidden_size, bias=True)
+            # deterministic weights/bias for checking copies
+            w = torch.arange(hidden_size * hidden_size).float().view(hidden_size, hidden_size)
+            b = torch.arange(hidden_size).float()
+            with torch.no_grad():
+                self.down_proj.weight.copy_(w)
+                self.down_proj.bias.copy_(b)
+            self._init_weight = w.clone()
+            self._init_bias = b.clone()
+
+    class BiasLayer(nn.Module):
+        def __init__(self, hidden_size=4):
+            super().__init__()
+            self.mlp = BiasMLP(hidden_size=hidden_size)
+
+    class BiasModel(PreTrainedModel):
+        config_class = BiasConfig
+
+        def __init__(self, config):
+            super().__init__(config)
+            hidden = 4
+            self.config = config
+            self.model = types.SimpleNamespace(
+                layers=nn.ModuleList([BiasLayer(hidden) for _ in range(config.num_hidden_layers)])
+            )
+            self.lm_head = nn.Linear(hidden, 2, bias=False)
+
+        @classmethod
+        def from_pretrained(cls, *args, config=None, **kwargs):
+            cfg = config or BiasConfig()
+            return cls(cfg)
+
+    mod_name = "fake_bias_module_for_tests"
+    mod = types.ModuleType(mod_name)
+    BiasConfig.__module__ = mod_name
+    BiasModel.__module__ = mod_name
+    mod.BiasConfig = BiasConfig
+    mod.BiasModel = BiasModel
+    sys.modules[mod_name] = mod
+
+    spec = ArchitectureSpec(
+        name="Bias",
+        model_type="dummy_copy_check",
+        base_model_cls=BiasModel,
+        base_config_cls=BiasConfig,
+        mlp_getter=lambda model, idx: model.model.layers[idx].mlp,
+        down_proj_getter=lambda model, idx: model.model.layers[idx].mlp.down_proj,
+    )
+
+    loki_model_cls, loki_config_cls = model_utils._materialize_loki_classes(spec, tmp_path)
+    target_pos = [[0, 2]]  # active rows
+    config = loki_config_cls(target_pos=target_pos)
+    model = loki_model_cls(config)
+
+    mlp = model.model.layers[0].mlp
+    loki_layer = mlp.down_proj
+    expected_w = mlp._init_weight
+    expected_b = mlp._init_bias
+
+    torch.testing.assert_close(loki_layer.active.weight, expected_w[target_pos[0]])
+    torch.testing.assert_close(loki_layer.frozen.weight, expected_w[[1, 3]])
+    torch.testing.assert_close(loki_layer.active_bias, expected_b[target_pos[0]])
+    torch.testing.assert_close(loki_layer.frozen_bias, expected_b[[1, 3]])
