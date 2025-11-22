@@ -1,7 +1,8 @@
 # LoKI: Low-damage Knowledge Implanting of Large Language Models
 
-> **Accepted as AAAI-26 Oral**
-> **Status:** WIP (private repo; interfaces may change)
+> **Accepted as AAAI-26 Oral**  
+
+> **🌐 Project Page**: [https://nexround.github.io/LoKI-Page/](https://nexround.github.io/LoKI-Page/)
 
 ![LoKI Pipeline](assets/LoKI_pipeline.jpg)
 
