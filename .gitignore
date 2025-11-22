@@ -173,3 +173,5 @@ results
 infer_test
 yolov5
 data
+
+models/
