@@ -47,27 +47,29 @@ uv run pytest tests/integration -q
 
 After `uv sync`, the `loki` console script is available. Use `uv run loki --help` for full options.
 
-- Generate trainable node positions from KVA output:
+- **Generate trainable node positions from KVA output**:
   ```bash
-  uv run loki select-nodes \
-    --hdf5-path kva_result/hdf5/Llama-3.1-8B-Instruct/kva_mmlu.h5 \
-    --quota 10 \
+  uv run loki select-nodes 
+    --hdf5-path kva_result/hdf5/Llama-3.1-8B-Instruct/kva_mmlu.h5 
+    --quota 10 
     --strategy layer_balanced
   ```
-- Create a LoKI model from pretrained weights:
+
+- **Create a LoKI model from pretrained weights**:
   ```bash
-  uv run loki create-model \
-    --model-name meta-llama/Llama-3.1-8B-Instruct \
-    --target-pos-path kva_result/pos_json/Llama-3.1-8B-Instruct/10.json \
-    --save-dir models/loki_llama_10 \
+  uv run loki create-model 
+    --model-name meta-llama/Llama-3.1-8B-Instruct 
+    --target-pos-path kva_result/pos_json/Llama-3.1-8B-Instruct/10.json 
+    --save-dir models/loki_llama_10 
     --torch-dtype bfloat16
   ```
-- Restore a LoKI model back to standard format:
+
+- **Restore a LoKI model back to standard format**:
   ```bash
-  uv run loki restore-model \
-    --model-path models/loki_llama_10 \
-    --target-pos-path kva_result/pos_json/Llama-3.1-8B-Instruct/10.json \
-    --output-path models/restored_llama \
+  uv run loki restore-model 
+    --model-path models/loki_llama_10 
+    --target-pos-path kva_result/pos_json/Llama-3.1-8B-Instruct/10.json 
+    --output-path models/restored_llama 
     --model-name meta-llama/Llama-3.1-8B-Instruct
   ```
 
@@ -75,11 +77,9 @@ After `uv sync`, the `loki` console script is available. Use `uv run loki --help
 
 The LoKI workflow consists of three phases:
 
-1. **Analyse (KVA)**: Identify knowledge-bearing neurons using integrated gradients
-2. **Select**: Choose trainable neurons based on attribution scores
-3. **Implant**: Fine-tune only selected neurons with LlamaFactory
-
-All operations use CLI tools - no manual notebook execution required!
+1. **Analyse (KVA)**: Identify knowledge-bearing neurons using integrated gradients.
+2. **Select**: Choose trainable neurons based on attribution scores.
+3. **Implant**: Fine-tune only selected neurons with LlamaFactory.
 
 ---
 
@@ -116,40 +116,40 @@ make test_analyse_llama
 
 **Original script** (single sample processing):
 ```bash
-uv run accelerate launch --mixed_precision bf16 scripts/analyse_mmlu.py \
-    --model_path meta-llama/Llama-3.1-8B-Instruct \
-    --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct \
-    --result_file kva_mmlu.h5 \
-    --write_mode w \
+uv run accelerate launch --mixed_precision bf16 scripts/analyse_mmlu.py 
+    --model_path meta-llama/Llama-3.1-8B-Instruct 
+    --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct 
+    --result_file kva_mmlu.h5 
+    --write_mode w 
     --max_samples_per_subset 50  # NEW: limit samples per subset
 ```
 
 **NEW: Parallel script** (batch + multi-GPU support):
 ```bash
 # Single GPU with batch processing (4x faster)
-uv run python scripts/analyse_mmlu_parallel.py \
-    --model_path meta-llama/Llama-3.1-8B-Instruct \
-    --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct \
-    --batch_size 4 \
-    --result_file kva_mmlu_batch.h5 \
+uv run python scripts/analyse_mmlu.py 
+    --model_path meta-llama/Llama-3.1-8B-Instruct 
+    --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct 
+    --batch_size 4 
+    --result_file kva_mmlu_batch.h5 
     --use_flash_attention
 
 # Multi-GPU data parallelism (samples across GPUs)
-uv run accelerate launch --num_processes 4 --mixed_precision bf16 \
-    scripts/analyse_mmlu_parallel.py \
-    --model_path meta-llama/Llama-3.1-8B-Instruct \
-    --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct \
-    --batch_size 2 \
-    --parallel_mode data \
+uv run accelerate launch --num_processes 4 --mixed_precision bf16 
+    scripts/analyse_mmlu.py 
+    --model_path meta-llama/Llama-3.1-8B-Instruct 
+    --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct 
+    --batch_size 2 
+    --parallel_mode data 
     --result_file kva_mmlu_data_parallel.h5
 
 # Multi-GPU model parallelism (model layers across GPUs)
-uv run python scripts/analyse_mmlu_parallel.py \
-    --model_type llama \
-    --model_path meta-llama/Llama-3.1-8B-Instruct \
-    --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct \
-    --batch_size 4 \
-    --parallel_mode model \
+uv run python scripts/analyse_mmlu.py 
+    --model_type llama 
+    --model_path meta-llama/Llama-3.1-8B-Instruct 
+    --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct 
+    --batch_size 4 
+    --parallel_mode model 
     --result_file kva_mmlu_model_parallel.h5
 ```
 
@@ -171,28 +171,28 @@ Use attribution scores from KVA to select trainable neurons. We provide pre-comp
 
 **Layer-Balanced** (default - equal distribution across layers):
 ```bash
-uv run python scripts/select_trainable_nodes.py \
-    --hdf5_path kva_result/hdf5/Llama-3.1-8B-Instruct/kva_mmlu.h5 \
-    --quota 10 \
-    --output_dir kva_result/pos_json/Llama-3.1-8B-Instruct
+uv run loki select-nodes 
+    --hdf5-path kva_result/hdf5/Llama-3.1-8B-Instruct/kva_mmlu.h5 
+    --quota 10 
+    --strategy layer_balanced
 ```
 
 **Global Lowest** (select globally lowest attribution):
 ```bash
-uv run python scripts/select_trainable_nodes.py \
-    --hdf5_path kva_result/hdf5/model/kva_mmlu.h5 \
-    --quota 30 \
-    --strategy global_lowest \
-    --output_name global_30_L.json
+uv run loki select-nodes 
+    --hdf5-path kva_result/hdf5/model/kva_mmlu.h5 
+    --quota 30 
+    --strategy global_lowest 
+    --output-name global_30_L.json
 ```
 
 **Global Highest** (select globally highest attribution):
 ```bash
-uv run python scripts/select_trainable_nodes.py \
-    --hdf5_path kva_result/hdf5/model/kva_mmlu.h5 \
-    --quota 30 \
-    --strategy global_highest \
-    --output_name global_30_H.json
+uv run loki select-nodes 
+    --hdf5-path kva_result/hdf5/model/kva_mmlu.h5 
+    --quota 30 
+    --strategy global_highest 
+    --output-name global_30_H.json
 ```
 
 **Output**: JSON file with trainable node positions per layer
@@ -207,17 +207,16 @@ Convert standard model to LoKI model (replaces down_proj with LoKILinear):
 
 ```bash
 # Llama
-uv run python scripts/create_loki_model.py \
-    --model_type llama \
-    --model_name meta-llama/Llama-3.1-8B-Instruct \
-    --target_pos_path kva_result/pos_json/Llama-3.1-8B-Instruct/10.json \
-    --save_dir models/loki_llama_10
+uv run loki create-model 
+    --model-name meta-llama/Llama-3.1-8B-Instruct 
+    --target-pos-path kva_result/pos_json/Llama-3.1-8B-Instruct/10.json 
+    --save-dir models/loki_llama_10
 
 # Qwen
-uv run python scripts/create_loki_model.py \
-    --model_type qwen \
-    --model_name Qwen/Qwen2.5-0.5B-Instruct \
-    --target_pos_path kva_result/pos_json/Qwen2.5-0.5B-Instruct/10.json \
+uv run loki create-model 
+    --model-type qwen 
+    --model-name Qwen/Qwen2.5-0.5B-Instruct 
+    --target_pos_path kva_result/pos_json/Qwen2.5-0.5B-Instruct/10.json 
     --save_dir models/loki_qwen_10
 ```
 
@@ -246,11 +245,11 @@ bash train.sh
 Convert LoKI model back to standard format:
 
 ```bash
-uv run python scripts/restore_loki_model.py \
-    --model_path models/loki_llama_10 \
-    --target_pos_path kva_result/pos_json/Llama-3.1-8B-Instruct/10.json \
-    --output_path models/restored_llama \
-    --model_name meta-llama/Llama-3.1-8B-Instruct
+uv run loki restore-model 
+    --model-path models/loki_llama_10 
+    --target-pos-path kva_result/pos_json/Llama-3.1-8B-Instruct/10.json 
+    --output-path models/restored_llama 
+    --model-name meta-llama/Llama-3.1-8B-Instruct
 ```
 
 If using LoRA, merge adapter first:
@@ -263,7 +262,7 @@ lora_model = PeftModel.from_pretrained(base_model, "models/lora_adapter")
 merged_model = lora_model.merge_and_unload()
 merged_model.save_pretrained("models/merged")
 
-# Then restore using scripts/restore_loki_model.py
+# Then restore using loki restore-model
 ```
 
 ---
@@ -324,15 +323,22 @@ LoKI/
 │   │   └── qwen/          # Qwen LoKI/KVA models
 │   ├── selection/         # Node selection strategies
 │   ├── utils/             # Utilities (logging, HDF5, etc.)
-│   └── constants.py       # Shared constants
-├── scripts/               # CLI tools
-│   ├── analyse_mmlu.py    # Unified KVA analysis
-│   ├── select_trainable_nodes.py  # Node selection
-│   ├── create_loki_model.py       # Create LoKI model
-│   └── restore_loki_model.py      # Restore to standard format
-├── tests/                 # Test suite
+│   └── cli.py             # CLI entry point
+├── scripts/               # Analysis scripts
+│   └── analyse_mmlu.py    # Unified KVA analysis
 ├── lf_config/             # LlamaFactory training configs
-└── kva_result/            # KVA results and position JSONs
+├── kva_result/            # KVA results and position JSONs
+├── models/                # Saved LoKI models
+└── tests/                 # Test suite
 ```
 
-See `REFACTORING_SUMMARY_CN.md` for detailed refactoring documentation.
+## Citation
+
+```bibtex
+@inproceedings{wang2026loki,
+  title={LoKI: Low-damage Knowledge Implanting of Large Language Models},
+  author={Runyu Wang and Peng Ping and Zhengyu Guo and Xiaoye Zhang and Quan Shi and Liting Zhou and Tianbo Ji},
+  booktitle={Proceedings of the AAAI Conference on Artificial Intelligence},
+  year={2026}
+}
+```
