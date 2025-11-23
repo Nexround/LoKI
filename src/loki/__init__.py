@@ -1,5 +1,4 @@
-"""
-LoKI: Low-damage Knowledge Implanting
+"""LoKI: Low-damage Knowledge Implanting.
 
 Selective fine-tuning method that identifies and trains only specific
 knowledge-bearing neurons in MLP down-projection layers.

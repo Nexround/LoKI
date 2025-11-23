@@ -59,7 +59,7 @@ class HDF5Manager:
     DATASET_NAME = "dataset"
     METADATA_PREFIX = "metadata_"
 
-    def __init__(self, filepath: Path | str, mode: str = 'r'):
+    def __init__(self, filepath: Path | str, mode: str = "r"):
         """Initialize HDF5 manager.
 
         Args:
@@ -75,10 +75,10 @@ class HDF5Manager:
         """
         self.filepath = Path(filepath)
 
-        if mode not in ['r', 'w', 'a']:
+        if mode not in ["r", "w", "a"]:
             raise ValueError(f"Invalid mode: {mode}. Must be 'r', 'w', or 'a'")
 
-        if mode == 'r' and not self.filepath.exists():
+        if mode == "r" and not self.filepath.exists():
             raise FileNotFoundError(f"File not found: {self.filepath}")
 
         self.mode = mode
@@ -123,7 +123,7 @@ class HDF5Manager:
             ...     metadata=metadata
             ... )
         """
-        if self.mode == 'r':
+        if self.mode == "r":
             raise RuntimeError("Cannot create dataset in read-only mode")
 
         # Ensure parent directory exists
@@ -138,7 +138,7 @@ class HDF5Manager:
 
         with h5py.File(self.filepath, self.mode) as f:
             if self.DATASET_NAME in f:
-                if self.mode == 'w':
+                if self.mode == "w":
                     raise ValueError(
                         f"Dataset '{self.DATASET_NAME}' already exists. "
                         "Use mode='a' to append or delete the file first."
@@ -162,7 +162,7 @@ class HDF5Manager:
             for key, value in metadata.items():
                 attr_key = f"{self.METADATA_PREFIX}{key}"
                 # Convert complex types to JSON strings
-                if isinstance(value, (dict, list)):
+                if isinstance(value, dict | list):
                     value = json.dumps(value)
                 dset.attrs[attr_key] = value
 
@@ -192,7 +192,7 @@ class HDF5Manager:
             >>> array = np.random.rand(32, 4096).astype(np.float16)
             >>> manager.append_data(array)
         """
-        if self.mode == 'r':
+        if self.mode == "r":
             raise RuntimeError("Cannot append data in read-only mode")
 
         # Convert PyTorch tensors to NumPy
@@ -208,7 +208,7 @@ class HDF5Manager:
         if data.dtype != np.float16:
             data = data.astype(np.float16)
 
-        with h5py.File(self.filepath, 'a') as f:
+        with h5py.File(self.filepath, "a") as f:
             if self.DATASET_NAME not in f:
                 raise RuntimeError(
                     f"Dataset '{self.DATASET_NAME}' does not exist. "
@@ -260,7 +260,7 @@ class HDF5Manager:
             >>> # Read specific layer across all samples
             >>> layer_5 = manager.read_dataset(layer_idx=5)  # shape: (N, H)
         """
-        with h5py.File(self.filepath, 'r') as f:
+        with h5py.File(self.filepath, "r") as f:
             if self.DATASET_NAME not in f:
                 raise KeyError(f"Dataset '{self.DATASET_NAME}' not found in {self.filepath}")
 
@@ -286,7 +286,7 @@ class HDF5Manager:
             >>> print(f"Model: {metadata['model_name']}")
             >>> print(f"Steps: {metadata['ig_steps']}")
         """
-        with h5py.File(self.filepath, 'r') as f:
+        with h5py.File(self.filepath, "r") as f:
             if self.DATASET_NAME not in f:
                 return {}
 
@@ -296,7 +296,7 @@ class HDF5Manager:
             for key in dset.attrs.keys():
                 if key.startswith(self.METADATA_PREFIX):
                     # Remove prefix
-                    clean_key = key[len(self.METADATA_PREFIX):]
+                    clean_key = key[len(self.METADATA_PREFIX) :]
                     value = dset.attrs[key]
 
                     # Try to parse JSON strings
@@ -320,10 +320,10 @@ class HDF5Manager:
             >>> shape = manager.get_shape()  # (100, 32, 4096)
             >>> num_samples, num_layers, hidden_size = shape
         """
-        with h5py.File(self.filepath, 'r') as f:
+        with h5py.File(self.filepath, "r") as f:
             if self.DATASET_NAME not in f:
                 raise KeyError(f"Dataset '{self.DATASET_NAME}' not found")
-            return f[self.DATASET_NAME].shape
+            return tuple(f[self.DATASET_NAME].shape)
 
     def get_dtype(self) -> np.dtype:
         """Get dataset data type.
@@ -331,10 +331,10 @@ class HDF5Manager:
         Returns:
             NumPy dtype of the dataset
         """
-        with h5py.File(self.filepath, 'r') as f:
+        with h5py.File(self.filepath, "r") as f:
             if self.DATASET_NAME not in f:
                 raise KeyError(f"Dataset '{self.DATASET_NAME}' not found")
-            return f[self.DATASET_NAME].dtype
+            return np.dtype(f[self.DATASET_NAME].dtype)
 
     def update_metadata(self, metadata: dict[str, Any]) -> None:
         """Update or add metadata attributes.
@@ -351,10 +351,10 @@ class HDF5Manager:
             ...     "processing_completed_at": "2025-11-20T12:00:00"
             ... })
         """
-        if self.mode == 'r':
+        if self.mode == "r":
             raise RuntimeError("Cannot update metadata in read-only mode")
 
-        with h5py.File(self.filepath, 'a') as f:
+        with h5py.File(self.filepath, "a") as f:
             if self.DATASET_NAME not in f:
                 raise RuntimeError(f"Dataset '{self.DATASET_NAME}' does not exist")
 
@@ -362,7 +362,7 @@ class HDF5Manager:
 
             for key, value in metadata.items():
                 attr_key = f"{self.METADATA_PREFIX}{key}"
-                if isinstance(value, (dict, list)):
+                if isinstance(value, dict | list):
                     value = json.dumps(value)
                 dset.attrs[attr_key] = value
 
@@ -409,7 +409,7 @@ class HDF5Manager:
         total_samples = 0
 
         for fpath in input_files:
-            with h5py.File(fpath, 'r') as f:
+            with h5py.File(fpath, "r") as f:
                 if HDF5Manager.DATASET_NAME not in f:
                     raise ValueError(f"File {fpath} missing '{HDF5Manager.DATASET_NAME}' dataset")
 
@@ -430,7 +430,7 @@ class HDF5Manager:
         # Create or open output file
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with h5py.File(output_file, 'a') as f_out:
+        with h5py.File(output_file, "a") as f_out:
             if HDF5Manager.DATASET_NAME in f_out:
                 # Validate existing dataset
                 existing_dset = f_out[HDF5Manager.DATASET_NAME]
@@ -444,10 +444,11 @@ class HDF5Manager:
                 existing_dset.resize((new_size,) + ref_shape)
             else:
                 # Create new dataset
+                ref_shape_tuple = ref_shape if ref_shape is not None else ()
                 existing_dset = f_out.create_dataset(
                     HDF5Manager.DATASET_NAME,
-                    shape=(total_samples,) + ref_shape,
-                    maxshape=(None,) + ref_shape,
+                    shape=(total_samples,) + ref_shape_tuple,
+                    maxshape=(None,) + ref_shape_tuple,
                     dtype=ref_dtype,
                     chunks=True,
                     compression="gzip",
@@ -457,10 +458,10 @@ class HDF5Manager:
 
             # Copy data from each input file
             for fpath in input_files:
-                with h5py.File(fpath, 'r') as f_in:
+                with h5py.File(fpath, "r") as f_in:
                     dset_in = f_in[HDF5Manager.DATASET_NAME]
                     num_samples = dset_in.shape[0]
-                    existing_dset[current_pos:current_pos + num_samples] = dset_in[:]
+                    existing_dset[current_pos : current_pos + num_samples] = dset_in[:]
                     current_pos += num_samples
 
         print(f"Successfully merged {len(input_files)} files into {output_file}")

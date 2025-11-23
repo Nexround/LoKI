@@ -1,5 +1,4 @@
-"""
-Utility functions for creating, modifying, and restoring LoKI models.
+"""Utility functions for creating, modifying, and restoring LoKI models.
 
 Provides high-level APIs for the LoKI workflow:
 - create_loki_model: Generate LoKI model from pretrained base model
@@ -30,8 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def _build_loki_module_source(spec: ArchitectureSpec) -> tuple[str, str, str]:
-    """
-    Build the Python source code for a file-backed LoKI wrapper module.
+    """Build the Python source code for a file-backed LoKI wrapper module.
 
     Returns the source string plus the generated model and config class names.
     """
@@ -271,8 +269,7 @@ def _load_module_from_path(module_name: str, module_path: Path):
 def _materialize_loki_classes(
     spec: ArchitectureSpec, save_dir: Path, module_name: str = "loki_modeling"
 ) -> tuple[type[PreTrainedModel], type[PretrainedConfig]]:
-    """
-    Generate a real Python module for the LoKI wrapper and return its classes.
+    """Generate a real Python module for the LoKI wrapper and return its classes.
 
     This follows the required flow to satisfy custom_object_save:
     1) emit a .py file, 2) load it as a module, 3) use the loaded classes.
@@ -298,8 +295,7 @@ def create_loki_model(
     torch_dtype: torch.dtype = torch.bfloat16,
     trust_remote_code: bool = False,
 ) -> None:
-    """
-    Create and save a LoKI model from a pretrained base model.
+    """Create and save a LoKI model from a pretrained base model.
 
     This now follows the disk-first flow required to make custom_object_save
     treat the wrapper as a normal, file-backed model:
@@ -341,12 +337,8 @@ def create_loki_model(
         loki_config_cls=loki_config_cls or base_spec.loki_config_cls,
         kva_model_cls=base_spec.kva_model_cls,
     )
-    loki_model_class, loki_config_cls = _materialize_loki_classes(
-        spec, save_dir_path
-    )
-    logger.info(
-        f"Generated wrapper module at {save_dir_path / '_generated' / 'loki_modeling.py'}"
-    )
+    loki_model_class, loki_config_cls = _materialize_loki_classes(spec, save_dir_path)
+    logger.info(f"Generated wrapper module at {save_dir_path / '_generated' / 'loki_modeling.py'}")
 
     # Load position indices from JSON file
     with open(target_pos_path, encoding="utf-8") as f:
@@ -376,9 +368,7 @@ def create_loki_model(
     # Save LoKI model configuration for Transformers compatibility
     logger.info(f"Saving LoKI model to {save_dir_path}")
     loki_model.save_pretrained(save_dir_path)
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name, trust_remote_code=trust_remote_code
-    )
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=trust_remote_code)
     tokenizer.save_pretrained(save_dir_path)
 
     # Save original model weights (required for LoKILinear reconstruction)
@@ -392,8 +382,7 @@ def _merge_loki_weights(
     loki_layer: LoKILinear,
     original_linear: torch.nn.Linear,
 ) -> None:
-    """
-    Merge weights from LoKILinear back into standard Linear layer.
+    """Merge weights from LoKILinear back into standard Linear layer.
 
     Combines active (trainable) and frozen weights from LoKILinear
     into the original neuron positions in a standard Linear layer.
@@ -427,8 +416,7 @@ def set_zero_weights(
     model_name: str | Path,
     torch_dtype: torch.dtype = torch.bfloat16,
 ) -> None:
-    """
-    Zero out specific neuron weights in down_proj layers.
+    """Zero out specific neuron weights in down_proj layers.
 
     Creates a baseline model by zeroing specified neurons in down_proj layers,
     useful for ablation studies and measuring knowledge impact.
@@ -458,7 +446,9 @@ def set_zero_weights(
                 if 0 <= idx < down_proj.weight.size(0):
                     down_proj.weight[idx, :] = 0.0
 
-        logger.debug(f"Zeroed {len(target_pos.get(str(layer_idx), []))} neurons in layer {layer_idx}")
+        logger.debug(
+            f"Zeroed {len(target_pos.get(str(layer_idx), []))} neurons in layer {layer_idx}"
+        )
 
     # Save the modified model and tokenizer
     logger.info(f"Saving zero-weight model to {output_path}")
@@ -474,8 +464,7 @@ def restore_loki_model(
     output_path: str | Path,
     torch_dtype: torch.dtype = torch.bfloat16,
 ) -> None:
-    """
-    Restore LoKI model to standard Transformers format.
+    """Restore LoKI model to standard Transformers format.
 
     Merges LoKI-split weights (active/frozen) back into standard Linear layers,
     producing a model compatible with standard Transformers library.
@@ -527,9 +516,7 @@ def restore_loki_model(
         original_down_proj = original_model.model.layers[layer_idx].mlp.down_proj
 
         # Initialize LoKI modified layer
-        loki_layer = LoKILinear(
-            original_down_proj, target_pos=target_pos[layer_idx]
-        )
+        loki_layer = LoKILinear(original_down_proj, target_pos=target_pos[layer_idx])
 
         # Prepare state dictionary for weight loading
         state_dict = {}
@@ -547,7 +534,7 @@ def restore_loki_model(
         if original_down_proj.bias is not None:
             bias_keys = {
                 "active_bias": f"model.layers.{layer_idx}.mlp.down_proj.active_bias",
-                "frozen_bias": f"model.layers.{layer_idx}.mlp.down_proj.frozen_bias"
+                "frozen_bias": f"model.layers.{layer_idx}.mlp.down_proj.frozen_bias",
             }
             for param_key, tensor_key in bias_keys.items():
                 if tensor_key in tensor_dict:

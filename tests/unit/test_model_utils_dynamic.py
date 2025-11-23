@@ -6,10 +6,9 @@ from pathlib import Path
 import pytest
 import torch
 import torch.nn as nn
-from transformers import PreTrainedModel, PretrainedConfig
-
 from loki.models import ArchitectureSpec
 from loki.utils import model_utils
+from transformers import PretrainedConfig, PreTrainedModel
 
 
 class DummyConfig(PretrainedConfig):
@@ -132,7 +131,9 @@ def test_create_loki_model_uses_generated_module(tmp_path, monkeypatch):
 
     monkeypatch.setattr(model_utils.AutoModel, "from_pretrained", FakeModel.from_pretrained)
     monkeypatch.setattr(
-        model_utils, "AutoTokenizer", types.SimpleNamespace(from_pretrained=lambda *a, **k: _DummyTokenizer())
+        model_utils,
+        "AutoTokenizer",
+        types.SimpleNamespace(from_pretrained=lambda *a, **k: _DummyTokenizer()),
     )
 
     target_pos = [[0, 1], [1, 2]]
@@ -156,8 +157,8 @@ def test_create_loki_model_uses_generated_module(tmp_path, monkeypatch):
     spec_saved = importlib.util.spec_from_file_location("loaded_loki_module", saved_module)
     module = importlib.util.module_from_spec(spec_saved)
     spec_saved.loader.exec_module(module)  # type: ignore[attr-defined]
-    LokiConfig = getattr(module, "LoKIDummyConfig")
-    LokiModel = getattr(module, "LoKIDummyForCausalLM")
+    LokiConfig = module.LoKIDummyConfig
+    LokiModel = module.LoKIDummyForCausalLM
     cfg = LokiConfig(target_pos=target_pos)
     model = LokiModel(cfg)
     assert type(model.model.layers[0].mlp.down_proj).__name__ == "LoKILinear"

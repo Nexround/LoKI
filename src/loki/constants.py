@@ -1,5 +1,4 @@
-"""
-Shared constants for LoKI project.
+"""Shared constants for LoKI project.
 
 Contains datasets, integration methods, and other configuration constants
 used across multiple modules.
@@ -68,10 +67,10 @@ MMLU_ALL_SETS = [
 # Captum LayerIntegratedGradients integration methods
 INTEGRATION_METHODS = [
     "riemann_trapezoid",  # Default: trapezoidal rule approximation
-    "gausslegendre",       # Gauss-Legendre quadrature
-    "riemann_left",        # Left Riemann sum
-    "riemann_right",       # Right Riemann sum
-    "riemann_middle",      # Middle Riemann sum
+    "gausslegendre",  # Gauss-Legendre quadrature
+    "riemann_left",  # Left Riemann sum
+    "riemann_right",  # Right Riemann sum
+    "riemann_middle",  # Middle Riemann sum
 ]
 
 # Default configuration values

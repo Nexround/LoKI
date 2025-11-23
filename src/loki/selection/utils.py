@@ -25,7 +25,7 @@ def load_attributions_from_hdf5(hdf5_path: Path) -> np.ndarray:
         >>> scores = load_attributions_from_hdf5("kva_result/hdf5/model/kva_mmlu.h5")
         >>> print(scores.shape)  # (100, 32, 4096)
     """
-    manager = HDF5Manager(hdf5_path, mode='r')
+    manager = HDF5Manager(hdf5_path, mode="r")
     return manager.read_dataset()
 
 

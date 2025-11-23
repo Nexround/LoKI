@@ -55,8 +55,7 @@ class TestLoKIModelWorkflow:
         assert all(isinstance(idx, int) for layer in loaded for idx in layer)
 
     @pytest.mark.skipif(
-        not os.environ.get("LOKI_TEST_MODEL_NAME")
-        or not os.environ.get("LOKI_TEST_MODEL_TYPE"),
+        not os.environ.get("LOKI_TEST_MODEL_NAME") or not os.environ.get("LOKI_TEST_MODEL_TYPE"),
         reason="Requires actual model download - set LOKI_TEST_MODEL_NAME/TYPE",
     )
     def test_create_loki_model(self, temp_dirs, sample_positions):
@@ -91,12 +90,12 @@ class TestLoKIModelWorkflow:
         # Verify model was created
         assert temp_dirs["loki_model"].exists()
         assert (temp_dirs["loki_model"] / "config.json").exists()
-        assert (temp_dirs["loki_model"] / "pytorch_model.bin").exists() or \
-               (temp_dirs["loki_model"] / "model.safetensors").exists()
+        assert (temp_dirs["loki_model"] / "pytorch_model.bin").exists() or (
+            temp_dirs["loki_model"] / "model.safetensors"
+        ).exists()
 
     @pytest.mark.skipif(
-        not os.environ.get("LOKI_TEST_MODEL_NAME")
-        or not os.environ.get("LOKI_TEST_MODEL_TYPE"),
+        not os.environ.get("LOKI_TEST_MODEL_NAME") or not os.environ.get("LOKI_TEST_MODEL_TYPE"),
         reason="Requires actual model - set LOKI_TEST_MODEL_NAME/TYPE",
     )
     def test_restore_loki_model(self, temp_dirs, sample_positions):

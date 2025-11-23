@@ -1,5 +1,4 @@
-"""
-Logging configuration for LoKI project.
+"""Logging configuration for LoKI project.
 
 Provides standardized logging setup with consistent formatting across all modules.
 """
@@ -13,8 +12,7 @@ def setup_logger(
     level: int = logging.INFO,
     format_string: str | None = None,
 ) -> logging.Logger:
-    """
-    Configure logger with consistent formatting.
+    """Configure logger with consistent formatting.
 
     Args:
         name: Logger name (typically __name__ from calling module)
@@ -33,9 +31,7 @@ def setup_logger(
     handler = logging.StreamHandler(sys.stdout)
 
     if format_string is None:
-        format_string = (
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
     formatter = logging.Formatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
     handler.setFormatter(formatter)
@@ -46,8 +42,7 @@ def setup_logger(
 
 
 def configure_root_logger(level: int = logging.INFO) -> None:
-    """
-    Configure root logger for the entire LoKI project.
+    """Configure root logger for the entire LoKI project.
 
     Args:
         level: Logging level for all LoKI modules
@@ -56,5 +51,5 @@ def configure_root_logger(level: int = logging.INFO) -> None:
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=[logging.StreamHandler(sys.stdout)]
+        handlers=[logging.StreamHandler(sys.stdout)],
     )

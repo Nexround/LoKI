@@ -205,8 +205,8 @@ def run_create_model(args: argparse.Namespace) -> int:
 
     try:
         import torch
-    except ImportError:
-        raise ImportError("PyTorch is required for create-model command")
+    except ImportError as err:
+        raise ImportError("PyTorch is required for create-model command") from err
 
     dtype_map = {
         "float32": torch.float32,
@@ -234,7 +234,7 @@ def run_create_model(args: argparse.Namespace) -> int:
         model_name=args.model_name,
         target_pos_path=args.target_pos_path,
         save_dir=args.save_dir,
-        torch_dtype=torch_dtype,
+        torch_dtype=torch_dtype,  # type: ignore[arg-type]
         trust_remote_code=args.trust_remote_code,
     )
 
@@ -303,7 +303,8 @@ def main(argv: list[str] | None = None) -> int:
     level = getattr(logging, args.log_level.upper(), logging.INFO)
     configure_root_logger(level=level)
 
-    return args.func(args)
+    result = args.func(args)
+    return int(result) if result is not None else 0
 
 
 if __name__ == "__main__":

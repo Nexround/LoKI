@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 from loki.utils.hdf5_manager import HDF5Manager
 
 

@@ -21,8 +21,7 @@ def split_n(num_layers: int) -> list[float]:
 
 
 def select_trainable_nodes_layer_balanced(
-    attribution_scores: np.ndarray,
-    quota: float
+    attribution_scores: np.ndarray, quota: float
 ) -> list[list[int]]:
     """Select trainable nodes using layer-balanced strategy.
 

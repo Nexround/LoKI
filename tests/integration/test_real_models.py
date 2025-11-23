@@ -6,10 +6,9 @@ Uses accelerate.init_empty_weights to avoid downloading model weights.
 
 import pytest
 from accelerate import init_empty_weights
-from transformers import AutoConfig, AutoModel
-
 from loki.core import BaseKVAModel, BaseLoKIModel
 from loki.models import get_architecture_spec, get_kva_model_class, get_loki_model_class
+from transformers import AutoConfig, AutoModel
 
 REAL_MODEL_IDS = [
     "Qwen/Qwen2.5-0.5B-Instruct",

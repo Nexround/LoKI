@@ -8,10 +8,11 @@ layers; we generate the wrapper classes on demand.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Iterable, Union
+from typing import Union
 
 import torch.nn as nn
 from transformers import (
@@ -19,8 +20,8 @@ from transformers import (
     AutoModel,
     LlamaConfig,
     LlamaForCausalLM,
-    PreTrainedModel,
     PretrainedConfig,
+    PreTrainedModel,
     Qwen2Config,
     Qwen2ForCausalLM,
 )
@@ -37,8 +38,7 @@ TargetPosType = Union[
 
 @dataclass(frozen=True)
 class ArchitectureSpec:
-    """
-    Specification for wiring LoKI/KVA wrappers around a base model.
+    """Specification for wiring LoKI/KVA wrappers around a base model.
 
     Args:
         name: Human-readable architecture name (e.g., "Llama")
@@ -80,24 +80,20 @@ def _normalize_model_type(
     identifier: str | Path | PretrainedConfig | PreTrainedModel,
 ) -> str:
     """Resolve model_type from a string path/name, config, or model instance."""
-    if isinstance(identifier, (str, Path)):
-        return AutoConfig.from_pretrained(identifier).model_type
+    if isinstance(identifier, str | Path):
+        return str(AutoConfig.from_pretrained(identifier).model_type)
     if isinstance(identifier, PretrainedConfig):
-        return identifier.model_type
+        return str(identifier.model_type)
     if isinstance(identifier, PreTrainedModel):
-        return identifier.config.model_type
-    raise TypeError(
-        "identifier must be a model name/path, PretrainedConfig, or PreTrainedModel"
-    )
+        return str(identifier.config.model_type)
+    raise TypeError("identifier must be a model name/path, PretrainedConfig, or PreTrainedModel")
 
 
 def get_architecture_spec(
     identifier: str | Path | PretrainedConfig | PreTrainedModel,
 ) -> ArchitectureSpec:
     """Fetch the ArchitectureSpec for a given model identifier."""
-    model_type = (
-        identifier if isinstance(identifier, str) and identifier in _REGISTRY else None
-    )
+    model_type = identifier if isinstance(identifier, str) and identifier in _REGISTRY else None
     if model_type is None:
         model_type = _normalize_model_type(identifier)
     if model_type not in _REGISTRY:
@@ -121,7 +117,7 @@ def _build_loki_config(model_type: str) -> type[PretrainedConfig]:
     spec = get_architecture_spec(model_type)
     base_config_cls = spec.base_config_cls
 
-    class LoKIConfig(base_config_cls):  # type: ignore[misc]
+    class LoKIConfig(base_config_cls):  # type: ignore[misc,valid-type]
         def __init__(self, target_pos: TargetPosType | None = None, **kwargs):
             self.target_pos = target_pos
             super().__init__(**kwargs)
@@ -141,11 +137,11 @@ def _build_loki_wrapper(model_type: str) -> type[PreTrainedModel]:
     if spec.loki_model_cls is not None:
         return spec.loki_model_cls
 
-    class LoKIWrapper(BaseLoKIModel, spec.base_model_cls):  # type: ignore[misc]
+    class LoKIWrapper(BaseLoKIModel, spec.base_model_cls):  # type: ignore[misc,name-defined]
         config_class = get_loki_config_class(spec.model_type)
 
         def __init__(self, config):
-            spec.base_model_cls.__init__(self, config)
+            spec.base_model_cls.__init__(self, config)  # type: ignore[attr-defined]
             BaseLoKIModel.__init__(self, config)
 
         def _get_mlp_layer(self, layer_idx: int):
@@ -166,9 +162,9 @@ def _build_kva_wrapper(model_type: str) -> type[PreTrainedModel]:
     if spec.kva_model_cls is not None:
         return spec.kva_model_cls
 
-    class KVAWrapper(BaseKVAModel, spec.base_model_cls):  # type: ignore[misc]
+    class KVAWrapper(BaseKVAModel, spec.base_model_cls):  # type: ignore[misc,name-defined]
         def __init__(self, config):
-            spec.base_model_cls.__init__(self, config)
+            spec.base_model_cls.__init__(self, config)  # type: ignore[attr-defined]
             BaseKVAModel.__init__(self, config)
 
         def _get_down_proj_layer(self, layer_idx: int):
@@ -240,17 +236,19 @@ def _get_layers(model: PreTrainedModel):
                 return sub.model.layers
     if hasattr(model, "layers"):
         return model.layers
-    raise AttributeError("Cannot locate transformer layers on model (model/model.language_model/text_model/encoder)")
+    raise AttributeError(
+        "Cannot locate transformer layers on model (model/model.language_model/text_model/encoder)"
+    )
 
 
 def _infer_mlp_attr(layer) -> str:
     """Infer the name of the MLP module on a transformer layer."""
     for candidate in ("mlp", "ffn"):
         if hasattr(layer, candidate):
-            return candidate
+            return str(candidate)
     for attr, value in vars(layer).items():
         if hasattr(value, "down_proj"):
-            return attr
+            return str(attr)
     raise AttributeError("Cannot infer MLP attribute on layer")
 
 
@@ -283,7 +281,7 @@ def _auto_register_architecture(
         return getattr(_get_layers(m)[idx], mlp_attr)
 
     def down_proj_getter(m: PreTrainedModel, idx: int):
-        return getattr(mlp_getter(m, idx), "down_proj")
+        return mlp_getter(m, idx).down_proj
 
     spec = ArchitectureSpec(
         name=config.model_type.capitalize(),

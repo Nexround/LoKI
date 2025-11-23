@@ -3,9 +3,9 @@
 import types
 
 import torch
+from loki.utils.hdf5_manager import HDF5Manager
 
 from scripts.analyse_mmlu import build_conversation, collate_fn, process_batch
-from loki.utils.hdf5_manager import HDF5Manager
 
 
 def test_build_conversation_includes_subject_and_choices():

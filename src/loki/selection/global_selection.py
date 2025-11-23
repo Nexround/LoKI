@@ -9,8 +9,7 @@ import numpy as np
 
 
 def select_trainable_nodes_global_lowest(
-    attribution_scores: np.ndarray,
-    quota: float
+    attribution_scores: np.ndarray, quota: float
 ) -> list[list[int]]:
     """Select trainable nodes with globally lowest attribution scores.
 
@@ -67,10 +66,10 @@ def select_trainable_nodes_global_lowest(
 
     # Select nodes with highest selection counts
     flattened_counts = node_counts.flatten()
-    sorted_global_indices = np.argsort(flattened_counts, kind='stable')[::-1][:total_trainable]
+    sorted_global_indices = np.argsort(flattened_counts, kind="stable")[::-1][:total_trainable]
 
     # Organize results by layer
-    result = [[] for _ in range(num_layers)]
+    result: list[list[int]] = [[] for _ in range(num_layers)]
     for global_idx in sorted_global_indices:
         layer_idx = global_idx // num_nodes
         node_idx = global_idx % num_nodes
@@ -80,8 +79,7 @@ def select_trainable_nodes_global_lowest(
 
 
 def select_trainable_nodes_global_highest(
-    attribution_scores: np.ndarray,
-    quota: float
+    attribution_scores: np.ndarray, quota: float
 ) -> list[list[int]]:
     """Select trainable nodes with globally highest attribution scores.
 
@@ -126,7 +124,9 @@ def select_trainable_nodes_global_highest(
             normalized = (flattened_grad - min_val) / (max_val - min_val)
 
         # Select indices of nodes with HIGHEST normalized scores
-        largest_global_indices = np.argsort(-normalized)[:total_trainable]  # Negative for descending
+        largest_global_indices = np.argsort(-normalized)[
+            :total_trainable
+        ]  # Negative for descending
 
         # Update node selection counts
         for global_idx in largest_global_indices:
@@ -136,10 +136,10 @@ def select_trainable_nodes_global_highest(
 
     # Select nodes with highest selection counts
     flattened_counts = node_counts.flatten()
-    sorted_global_indices = np.argsort(flattened_counts, kind='stable')[::-1][:total_trainable]
+    sorted_global_indices = np.argsort(flattened_counts, kind="stable")[::-1][:total_trainable]
 
     # Organize results by layer
-    result = [[] for _ in range(num_layers)]
+    result: list[list[int]] = [[] for _ in range(num_layers)]
     for global_idx in sorted_global_indices:
         layer_idx = global_idx // num_nodes
         node_idx = global_idx % num_nodes

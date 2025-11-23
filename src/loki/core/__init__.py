@@ -1,5 +1,4 @@
-"""
-Core abstractions for LoKI models.
+"""Core abstractions for LoKI models.
 
 This module provides base classes that unify common functionality across
 different model architectures (Llama, Qwen, etc.), eliminating code duplication.

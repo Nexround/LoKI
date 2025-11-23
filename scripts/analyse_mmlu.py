@@ -57,6 +57,7 @@ from transformers import AutoTokenizer, PreTrainedModel
 
 try:
     from accelerate import Accelerator
+
     ACCELERATE_AVAILABLE = True
 except ImportError:
     ACCELERATE_AVAILABLE = False
@@ -65,7 +66,6 @@ from loki.constants import DEFAULT_IG_METHOD, DEFAULT_IG_STEPS, MMLU_ALL_SETS
 from loki.models import get_architecture_spec, get_kva_model_class
 from loki.utils.hdf5_manager import HDF5Manager
 from loki.utils.logging_config import configure_root_logger
-
 
 logger = logging.getLogger(__name__)
 
@@ -110,11 +110,11 @@ def collate_fn(batch):
     """Custom collate function for batching MMLU samples."""
     input_ids = [item["input_ids"] for item in batch]
     attention_masks = [item["attention_mask"] for item in batch]
-    
+
     # Pad sequences to max length in batch
     input_ids_padded = pad_sequence(input_ids, batch_first=True, padding_value=0)
     attention_masks_padded = pad_sequence(attention_masks, batch_first=True, padding_value=0)
-    
+
     return {
         "input_ids": input_ids_padded,
         "attention_mask": attention_masks_padded,
@@ -143,10 +143,7 @@ def build_conversation(subset: str, test_sample: dict) -> list:
             f"Question: {test_sample['question']}\n"
             f"Choices:\n"
             + "\n".join(
-                [
-                    f"{chr(65 + i)}. {choice}"
-                    for i, choice in enumerate(test_sample["choices"])
-                ]
+                [f"{chr(65 + i)}. {choice}" for i, choice in enumerate(test_sample["choices"])]
             )
             + "\nAnswer: \n"
         ),
@@ -170,24 +167,24 @@ def setup_model_parallel(model, num_gpus: int):
 
     num_layers = model.config.num_hidden_layers
     layers_per_gpu = num_layers // num_gpus
-    
+
     logger.info(f"Setting up model parallelism across {num_gpus} GPUs")
     logger.info(f"Layers per GPU: ~{layers_per_gpu}")
-    
+
     # Move embedding to first GPU
-    model.model.embed_tokens.to(f"cuda:0")
-    
+    model.model.embed_tokens.to("cuda:0")
+
     # Distribute transformer layers
     for layer_idx in range(num_layers):
         gpu_idx = min(layer_idx // layers_per_gpu, num_gpus - 1)
         model.model.layers[layer_idx].to(f"cuda:{gpu_idx}")
         if layer_idx % 10 == 0:
             logger.debug(f"Layer {layer_idx} -> GPU {gpu_idx}")
-    
+
     # Move final layers to last GPU
     model.model.norm.to(f"cuda:{num_gpus - 1}")
     model.lm_head.to(f"cuda:{num_gpus - 1}")
-    
+
     logger.info("Model parallelism setup complete")
     return model
 
@@ -217,7 +214,7 @@ def process_batch(
     """
     input_ids = batch["input_ids"]
     attention_mask = batch["attention_mask"]
-    
+
     if not is_model_parallel:
         input_ids = input_ids.to(device)
         attention_mask = attention_mask.to(device)
@@ -225,24 +222,24 @@ def process_batch(
         # For model parallelism, input goes to first device
         input_ids = input_ids.to("cuda:0")
         attention_mask = attention_mask.to("cuda:0")
-    
+
     attention_mask = attention_mask.to(torch.int8)
     batch_size = input_ids.shape[0]
-    
+
     # Forward pass to get predictions for all samples in batch
     with torch.no_grad():
         outputs = model(input_ids, attention_mask)
         logits = outputs.logits[:, -1, :]  # [batch_size, vocab_size]
-    
+
     predicted_labels = torch.argmax(logits, dim=-1).cpu().numpy()
-    
+
     # Process each sample in batch
     for i in range(batch_size):
         # Extract single sample
-        sample_input_ids = input_ids[i:i+1]
-        sample_attention_mask = attention_mask[i:i+1]
+        sample_input_ids = input_ids[i : i + 1]
+        sample_attention_mask = attention_mask[i : i + 1]
         predicted_label = int(predicted_labels[i])
-        
+
         # Compute integrated gradients
         model.compute_integrated_gradients(
             input_ids=sample_input_ids,
@@ -252,12 +249,12 @@ def process_batch(
             steps=ig_steps,
             method=ig_method,
         )
-        
+
         # Save results to HDF5 (only on main process)
         if hdf5_manager is not None:
             stacked = torch.stack(model.integrated_gradients)
             hdf5_manager.append_data(stacked)
-        
+
         # Clean up
         model.clean()
 
@@ -362,7 +359,9 @@ def main():
 
     # Check for data parallelism requirements
     if args.parallel_mode == "data" and not ACCELERATE_AVAILABLE:
-        raise ImportError("Data parallelism requires accelerate library. Install with: pip install accelerate")
+        raise ImportError(
+            "Data parallelism requires accelerate library. Install with: pip install accelerate"
+        )
 
     # Initialize accelerator for data parallelism
     accelerator = None
@@ -420,7 +419,7 @@ def main():
     # Load model with Captum-based KVA
     if is_main_process:
         logger.info(f"\n***** Loading {resolved_model_type} model: {args.model_path} *****")
-    
+
     model_kwargs = {
         "dtype": torch.bfloat16,
     }
@@ -459,8 +458,12 @@ def main():
     analysis_metadata = {
         "model_name": args.model_path,
         "model_type": resolved_model_type,
-        "num_layers": model.config.num_hidden_layers if hasattr(model, 'config') else model.module.config.num_hidden_layers,
-        "hidden_size": model.config.hidden_size if hasattr(model, 'config') else model.module.config.hidden_size,
+        "num_layers": model.config.num_hidden_layers
+        if hasattr(model, "config")
+        else model.module.config.num_hidden_layers,
+        "hidden_size": model.config.hidden_size
+        if hasattr(model, "config")
+        else model.module.config.hidden_size,
         "ig_steps": ig_steps,
         "ig_method": ig_method,
         "seed": args.seed,
@@ -473,17 +476,25 @@ def main():
     # Initialize HDF5 file with metadata if in write mode (only main process)
     output_path = os.path.join(args.output_dir, args.result_file)
     hdf5_manager = None
-    
+
     if is_main_process:
-        if args.write_mode == 'w':
-            hdf5_manager = HDF5Manager(Path(output_path), mode='w')
-            num_layers = model.config.num_hidden_layers if hasattr(model, 'config') else model.module.config.num_hidden_layers
-            hidden_size = model.config.hidden_size if hasattr(model, 'config') else model.module.config.hidden_size
+        if args.write_mode == "w":
+            hdf5_manager = HDF5Manager(Path(output_path), mode="w")
+            num_layers = (
+                model.config.num_hidden_layers
+                if hasattr(model, "config")
+                else model.module.config.num_hidden_layers
+            )
+            hidden_size = (
+                model.config.hidden_size
+                if hasattr(model, "config")
+                else model.module.config.hidden_size
+            )
             shape = (0, num_layers, hidden_size)
             hdf5_manager.create_dataset_with_metadata(shape=shape, metadata=analysis_metadata)
             logger.info(f"Created HDF5 file with metadata: {output_path}")
         else:
-            hdf5_manager = HDF5Manager(Path(output_path), mode='a')
+            hdf5_manager = HDF5Manager(Path(output_path), mode="a")
 
     start_time = time.time()
     total_samples = 0
@@ -491,34 +502,34 @@ def main():
     # Collect all samples from MMLU subsets
     if is_main_process:
         logger.info("\n***** Collecting MMLU samples *****")
-    
+
     all_samples = []
     for subset in MMLU_ALL_SETS:
         dataset = load_dataset("cais/mmlu", subset)
         test_dataset = dataset["test"]
-        
+
         num_samples = len(test_dataset)
         if args.max_samples_per_subset is not None:
             num_samples = min(args.max_samples_per_subset, num_samples)
-        
+
         for idx in range(num_samples):
             all_samples.append((subset, test_dataset[idx]))
-    
+
     if is_main_process:
         logger.info(f"Total samples to process: {len(all_samples)}")
 
     # Create dataset and dataloader
     mmlu_dataset = MMLUDataset(all_samples, tokenizer, device)
-    
+
     dataloader_kwargs = {
         "batch_size": args.batch_size,
         "shuffle": False,
         "num_workers": args.num_workers,
         "collate_fn": collate_fn,
     }
-    
+
     dataloader = DataLoader(mmlu_dataset, **dataloader_kwargs)
-    
+
     # Prepare dataloader with accelerator for data parallelism
     if args.parallel_mode == "data":
         dataloader = accelerator.prepare(dataloader)
@@ -526,17 +537,15 @@ def main():
     # Process batches
     if is_main_process:
         logger.info("\n***** Starting analysis *****")
-    
-    is_model_parallel = (args.parallel_mode == "model")
-    
-    for batch_idx, batch in enumerate(tqdm(
-        dataloader,
-        desc="Processing batches",
-        disable=not is_main_process
-    )):
+
+    is_model_parallel = args.parallel_mode == "model"
+
+    for batch_idx, batch in enumerate(
+        tqdm(dataloader, desc="Processing batches", disable=not is_main_process)
+    ):
         if is_main_process and batch_idx % args.log_interval == 0:
             logger.info(f"Processing batch {batch_idx}/{len(dataloader)}")
-        
+
         process_batch(
             model,
             batch,
@@ -547,7 +556,7 @@ def main():
             ig_method=ig_method,
             is_model_parallel=is_model_parallel,
         )
-        
+
         if is_main_process:
             total_samples += len(batch["input_ids"])
 
@@ -555,13 +564,17 @@ def main():
 
     # Update metadata with completion info (only main process)
     if is_main_process:
-        hdf5_manager = HDF5Manager(Path(output_path), mode='a')
-        hdf5_manager.update_metadata({
-            "num_samples_processed": total_samples,
-            "total_processing_time_seconds": total_time,
-            "average_time_per_sample_seconds": total_time / total_samples if total_samples > 0 else 0,
-            "completed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        })
+        hdf5_manager = HDF5Manager(Path(output_path), mode="a")
+        hdf5_manager.update_metadata(
+            {
+                "num_samples_processed": total_samples,
+                "total_processing_time_seconds": total_time,
+                "average_time_per_sample_seconds": total_time / total_samples
+                if total_samples > 0
+                else 0,
+                "completed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+        )
 
         logger.info("\n" + "=" * 80)
         logger.info("✅ Analysis completed successfully!")

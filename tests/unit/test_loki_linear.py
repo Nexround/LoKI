@@ -3,7 +3,6 @@
 import pytest
 import torch
 import torch.nn as nn
-
 from loki.core.loki_linear import LoKILinear
 
 

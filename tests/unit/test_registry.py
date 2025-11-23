@@ -1,14 +1,14 @@
 """Tests for dynamic architecture registry and auto-registration."""
 
-from types import SimpleNamespace
 import importlib
+from types import SimpleNamespace
 
 import pytest
 import torch
 import torch.nn as nn
-from transformers import LlamaConfig, PreTrainedModel, PretrainedConfig
 from loki import models as registry
 from loki.models import registry as registry_module
+from transformers import LlamaConfig, PretrainedConfig, PreTrainedModel
 
 
 class DummyConfig(PretrainedConfig):
@@ -76,7 +76,16 @@ def test_auto_register_architecture(monkeypatch):
 
     # Their configs should carry target_pos attribute and inherit base config fields
     cfg_cls = registry_module.get_loki_config_class(config)
-    cfg = cfg_cls(target_pos=[[], []], hidden_size=32, num_hidden_layers=2, num_attention_heads=4, num_key_value_heads=4, intermediate_size=64, vocab_size=128, rms_norm_eps=1e-5)
+    cfg = cfg_cls(
+        target_pos=[[], []],
+        hidden_size=32,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        num_key_value_heads=4,
+        intermediate_size=64,
+        vocab_size=128,
+        rms_norm_eps=1e-5,
+    )
     assert hasattr(cfg, "target_pos")
     assert cfg.target_pos == [[], []]
 

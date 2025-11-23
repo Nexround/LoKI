@@ -146,3 +146,13 @@ lint:
 
 typecheck:
 	uv run mypy src/
+
+# Pre-commit hooks
+pre-commit-install:
+	uv run pre-commit install
+
+pre-commit-run:
+	uv run pre-commit run --all-files
+
+pre-commit-update:
+	uv run pre-commit autoupdate

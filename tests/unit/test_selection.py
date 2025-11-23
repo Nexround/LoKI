@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 from loki.selection import (
     select_trainable_nodes_global_highest,
     select_trainable_nodes_global_lowest,

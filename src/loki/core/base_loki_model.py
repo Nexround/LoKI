@@ -1,5 +1,4 @@
-"""
-Base class for LoKI models that apply selective fine-tuning to MLP layers.
+"""Base class for LoKI models that apply selective fine-tuning to MLP layers.
 
 This abstract base class provides common functionality for all LoKI model variants,
 eliminating ~95% code duplication between architecture-specific implementations.
@@ -17,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class BaseLoKIModel(ABC):
-    """
-    Abstract base class for LoKI models.
+    """Abstract base class for LoKI models.
 
     Provides common initialization, validation, parameter freezing, and layer
     replacement logic. Subclasses only need to implement architecture-specific
@@ -29,8 +27,7 @@ class BaseLoKIModel(ABC):
     """
 
     def __init__(self, config):
-        """
-        Initialize LoKI model with target neuron positions.
+        """Initialize LoKI model with target neuron positions.
 
         Args:
             config: Model configuration with target_pos attribute
@@ -39,9 +36,7 @@ class BaseLoKIModel(ABC):
             ValueError: If config lacks target_pos or length mismatches num_hidden_layers
         """
         if not hasattr(config, "target_pos") or config.target_pos is None:
-            raise ValueError(
-                f"Config must include `target_pos` attribute, but got: {config}"
-            )
+            raise ValueError(f"Config must include `target_pos` attribute, but got: {config}")
 
         # Let the parent PreTrainedModel initialize first
         # (This is called via super().__init__(config) in the child class)
@@ -57,13 +52,9 @@ class BaseLoKIModel(ABC):
 
     @classmethod
     def from_pretrained(
-        cls,
-        pretrained_model_name_or_path: str,
-        *args,
-        **kwargs
+        cls, pretrained_model_name_or_path: str, *args, **kwargs
     ) -> PreTrainedModel:
-        """
-        Load pretrained model and apply LoKI transformations.
+        """Load pretrained model and apply LoKI transformations.
 
         This method:
         1. Loads the model configuration
@@ -82,14 +73,11 @@ class BaseLoKIModel(ABC):
         # Automatically load corresponding config file
         config = kwargs.pop("config", None)
         if config is None:
-            config = cls.config_class.from_pretrained(pretrained_model_name_or_path)
+            config = cls.config_class.from_pretrained(pretrained_model_name_or_path)  # type: ignore[attr-defined]
 
         # Call parent class to load pretrained model
-        model = super().from_pretrained(
-            pretrained_model_name_or_path,
-            *args,
-            config=config,
-            **kwargs
+        model = super().from_pretrained(  # type: ignore[misc]
+            pretrained_model_name_or_path, *args, config=config, **kwargs
         )
 
         # Freeze all base model parameters
@@ -102,11 +90,10 @@ class BaseLoKIModel(ABC):
         # Replace target linear layers with LoKILinear
         model.apply_loki_linear()
 
-        return model
+        return model  # type: ignore[return-value,no-any-return]
 
     def apply_loki_linear(self) -> None:
-        """
-        Replace all target MLP down_proj layers with LoKILinear.
+        """Replace all target MLP down_proj layers with LoKILinear.
 
         For each layer specified in self.target_pos, replaces the down_proj
         Linear layer with a LoKILinear layer that splits weights into trainable
@@ -116,9 +103,7 @@ class BaseLoKIModel(ABC):
             ValueError: If config or model attributes are missing
         """
         if not hasattr(self, "config") or not hasattr(self, "model"):
-            raise ValueError(
-                "Model must have 'config' and 'model' attributes before applying LoKI"
-            )
+            raise ValueError("Model must have 'config' and 'model' attributes before applying LoKI")
 
         logger.info(f"Replacing down_proj layers in {self.config.num_hidden_layers} layers")
 
@@ -132,10 +117,9 @@ class BaseLoKIModel(ABC):
                 continue
 
             # Initialize LoKI layer and replace
-            loki_linear = LoKILinear(
-                original_linear=original_layer,
-                target_pos=target_pos
-            )
+            if not isinstance(original_layer, nn.Linear):
+                raise TypeError(f"Expected nn.Linear, got {type(original_layer)}")
+            loki_linear = LoKILinear(original_linear=original_layer, target_pos=target_pos)
 
             mlp_layer.down_proj = loki_linear
             logger.info(
@@ -145,8 +129,7 @@ class BaseLoKIModel(ABC):
 
     @abstractmethod
     def _get_mlp_layer(self, layer_idx: int) -> nn.Module:
-        """
-        Get the MLP layer for a given layer index.
+        """Get the MLP layer for a given layer index.
 
         This method must be implemented by subclasses to handle architecture-specific
         layer access patterns (e.g., model.layers[idx].mlp for Llama/Qwen).
@@ -160,6 +143,4 @@ class BaseLoKIModel(ABC):
         Raises:
             NotImplementedError: If subclass doesn't implement this method
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement _get_mlp_layer()"
-        )
+        raise NotImplementedError(f"{self.__class__.__name__} must implement _get_mlp_layer()")

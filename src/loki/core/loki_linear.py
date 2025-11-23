@@ -1,5 +1,4 @@
-"""
-LoKILinear: Custom Linear layer with selective trainable parameters.
+"""LoKILinear: Custom Linear layer with selective trainable parameters.
 
 Splits a Linear layer's weights into 'active' (trainable) and 'frozen' portions
 based on neuron indices, enabling selective fine-tuning of specific neurons while
@@ -12,8 +11,7 @@ import torch.nn as nn
 
 
 class LoKILinear(nn.Module):
-    """
-    Linear layer with selective neuron training.
+    """Linear layer with selective neuron training.
 
     Splits the output dimension into trainable (active) and frozen portions based
     on target_pos indices. During forward pass, computes both portions separately,
@@ -30,8 +28,7 @@ class LoKILinear(nn.Module):
     """
 
     def __init__(self, original_linear: nn.Linear, target_pos: list[int]) -> None:
-        """
-        Initialize LoKILinear by splitting an original Linear layer.
+        """Initialize LoKILinear by splitting an original Linear layer.
 
         Args:
             original_linear: Pretrained Linear layer to split
@@ -44,15 +41,11 @@ class LoKILinear(nn.Module):
         self.out_features = original_linear.out_features
         self.in_features = original_linear.in_features
         self.active_pos = sorted(target_pos)
-        self.frozen_pos = [
-            i for i in range(self.out_features) if i not in self.active_pos
-        ]
+        self.frozen_pos = [i for i in range(self.out_features) if i not in self.active_pos]
 
         # Parameter validation
         if not all(0 <= idx < self.out_features for idx in self.active_pos):
-            raise ValueError(
-                f"Target neuron indices must be within [0, {self.out_features - 1}]"
-            )
+            raise ValueError(f"Target neuron indices must be within [0, {self.out_features - 1}]")
         if len(self.active_pos) != len(set(self.active_pos)):
             raise ValueError("Target neuron indices contain duplicate values")
 
@@ -62,22 +55,14 @@ class LoKILinear(nn.Module):
 
         # Split the weight matrix
         W = original_linear.weight.data
-        self.active.weight = nn.Parameter(
-            W[self.active_pos].clone(), requires_grad=True
-        )
-        self.frozen.weight = nn.Parameter(
-            W[self.frozen_pos].clone(), requires_grad=False
-        )
+        self.active.weight = nn.Parameter(W[self.active_pos].clone(), requires_grad=True)
+        self.frozen.weight = nn.Parameter(W[self.frozen_pos].clone(), requires_grad=False)
 
         # Handle bias if present
         if original_linear.bias is not None:
             b = original_linear.bias.data
-            self.active_bias = nn.Parameter(
-                b[self.active_pos].clone(), requires_grad=True
-            )
-            self.frozen_bias = nn.Parameter(
-                b[self.frozen_pos].clone(), requires_grad=False
-            )
+            self.active_bias = nn.Parameter(b[self.active_pos].clone(), requires_grad=True)
+            self.frozen_bias = nn.Parameter(b[self.frozen_pos].clone(), requires_grad=False)
         else:
             self.register_parameter("active_bias", None)
             self.register_parameter("frozen_bias", None)
@@ -86,14 +71,11 @@ class LoKILinear(nn.Module):
         # Maps original position -> position in concatenated [active, frozen] tensor
         index_map = torch.empty(self.out_features, dtype=torch.long)
         index_map[self.active_pos] = torch.arange(len(self.active_pos))
-        index_map[self.frozen_pos] = torch.arange(len(self.frozen_pos)) + len(
-            self.active_pos
-        )
+        index_map[self.frozen_pos] = torch.arange(len(self.frozen_pos)) + len(self.active_pos)
         self.register_buffer("index_map", index_map)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass with weight splitting and reordering.
+        """Forward pass with weight splitting and reordering.
 
         Computes active and frozen portions separately, concatenates them,
         optionally adds bias, then reorders to restore original neuron positions.
@@ -120,9 +102,7 @@ class LoKILinear(nn.Module):
         # Reorder output using pre-computed index map to restore original positions
         return output.gather(
             dim=-1,
-            index=self.index_map.view(1, 1, -1).expand(
-                output.size(0), output.size(1), -1
-            ),
+            index=self.index_map.view(1, 1, -1).expand(output.size(0), output.size(1), -1),
         )
 
     def extra_repr(self) -> str:

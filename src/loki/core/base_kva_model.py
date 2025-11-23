@@ -1,5 +1,4 @@
-"""
-Base class for KVA (Knowledge-Value Attribution) analysis models.
+"""Base class for KVA (Knowledge-Value Attribution) analysis models.
 
 Provides common functionality for computing integrated gradients using Captum's
 LayerIntegratedGradients to identify knowledge-bearing neurons in MLP layers.
@@ -17,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class BaseKVAModel(ABC):
-    """
-    Abstract base class for KVA analysis using Captum.
+    """Abstract base class for KVA analysis using Captum.
 
     Uses LayerIntegratedGradients to compute attributions for each down_proj layer,
     identifying which neurons are most critical for specific knowledge domains.
@@ -28,8 +26,7 @@ class BaseKVAModel(ABC):
     """
 
     def __init__(self, config):
-        """
-        Initialize KVA model and setup for integrated gradients computation.
+        """Initialize KVA model and setup for integrated gradients computation.
 
         Args:
             config: Model configuration with num_hidden_layers attribute
@@ -55,8 +52,7 @@ class BaseKVAModel(ABC):
         steps: int = 10,
         method: str = "riemann_trapezoid",
     ) -> list[torch.Tensor]:
-        """
-        Compute integrated gradients for all down_proj layers using Captum.
+        """Compute integrated gradients for all down_proj layers using Captum.
 
         Uses Captum's LayerIntegratedGradients with zero baselines to identify
         which neurons in each layer contribute most to the predicted label.
@@ -77,9 +73,7 @@ class BaseKVAModel(ABC):
         Returns:
             List of attribution tensors, one per layer [hidden_dim]
         """
-        logger.debug(
-            f"Computing integrated gradients with method={method}, steps={steps}"
-        )
+        logger.debug(f"Computing integrated gradients with method={method}, steps={steps}")
 
         # Store context for forward functions
         self._context = {
@@ -88,10 +82,10 @@ class BaseKVAModel(ABC):
         }
 
         # Compute IG for each layer independently
-        for layer_idx in range(self.config.num_hidden_layers):
+        for layer_idx in range(self.config.num_hidden_layers):  # type: ignore[attr-defined]
             # Create forward function that outputs target probability
             def forward_func(input_ids, attention_mask):
-                outputs = self.model(input_ids, attention_mask)
+                outputs = self.model(input_ids, attention_mask)  # type: ignore[attr-defined]
                 logits = self._get_lm_head_output(outputs, self._context["target_token_idx"])
                 probs = F.softmax(logits, dim=-1)
                 return probs[:, self._context["predicted_label"]]
@@ -121,21 +115,20 @@ class BaseKVAModel(ABC):
             )
 
             if layer_idx % 5 == 0:
-                logger.debug(f"Completed layer {layer_idx}/{self.config.num_hidden_layers}")
+                logger.debug(f"Completed layer {layer_idx}/{self.config.num_hidden_layers}")  # type: ignore[attr-defined]
 
         logger.debug("Integrated gradients computation complete")
-        return self.integrated_gradients
+        return self.integrated_gradients  # type: ignore[return-value,no-any-return]
 
     def clean(self) -> None:
         """Clean up stored attribution data to free memory."""
-        self.integrated_gradients = [None] * self.config.num_hidden_layers
+        self.integrated_gradients = [None] * self.config.num_hidden_layers  # type: ignore[attr-defined]
         if hasattr(self, "_context"):
             del self._context
 
     @abstractmethod
     def _get_down_proj_layer(self, layer_idx: int) -> nn.Module:
-        """
-        Get the down_proj layer for a given transformer layer index.
+        """Get the down_proj layer for a given transformer layer index.
 
         This method must be implemented by subclasses to handle architecture-specific
         layer access patterns.
@@ -153,13 +146,8 @@ class BaseKVAModel(ABC):
             f"{self.__class__.__name__} must implement _get_down_proj_layer()"
         )
 
-    def _get_lm_head_output(
-        self,
-        outputs,
-        target_token_idx: int
-    ) -> torch.Tensor:
-        """
-        Extract logits from model output at target token position.
+    def _get_lm_head_output(self, outputs, target_token_idx: int) -> torch.Tensor:
+        """Extract logits from model output at target token position.
 
         Default implementation works for most models. Override if needed.
 
@@ -170,4 +158,4 @@ class BaseKVAModel(ABC):
         Returns:
             Logits tensor [batch_size, vocab_size]
         """
-        return self.lm_head(outputs.last_hidden_state[:, target_token_idx, :])
+        return self.lm_head(outputs.last_hidden_state[:, target_token_idx, :])  # type: ignore[attr-defined,no-any-return]

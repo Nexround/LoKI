@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 from loki.selection.utils import (
     load_attributions_from_hdf5,
     merge_hdf5_files,
@@ -25,7 +24,7 @@ class TestHDF5Loading:
 
             # Create test HDF5 file using HDF5Manager
             test_data = np.random.rand(10, 4, 8)
-            manager = HDF5Manager(hdf5_path, mode='w')
+            manager = HDF5Manager(hdf5_path, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
             for i in range(10):
                 manager.append_data(test_data[i])
@@ -47,6 +46,7 @@ class TestHDF5Loading:
             # Create HDF5 without proper dataset using raw h5py
             # This test verifies error handling for corrupted files
             import h5py
+
             with h5py.File(hdf5_path, "w") as f:
                 f.create_dataset("wrong_key", data=np.random.rand(10, 4, 8))
 
@@ -110,7 +110,7 @@ class TestHDF5Merging:
 
             for i, data in enumerate([data1, data2, data3], 1):
                 filepath = input_dir / f"file{i}.h5"
-                manager = HDF5Manager(filepath, mode='w')
+                manager = HDF5Manager(filepath, mode="w")
                 manager.create_dataset_with_metadata(shape=(0, 4, 8))
                 for sample in data:
                     manager.append_data(sample)
@@ -119,7 +119,7 @@ class TestHDF5Merging:
             merge_hdf5_files(input_dir, output_file)
 
             # Verify merged file
-            manager = HDF5Manager(output_file, mode='r')
+            manager = HDF5Manager(output_file, mode="r")
             merged_data = manager.read_dataset()
             assert merged_data.shape == (15, 4, 8)  # 5+7+3 = 15
 
@@ -132,7 +132,7 @@ class TestHDF5Merging:
 
             # Create initial output file
             initial_data = np.random.rand(2, 4, 8).astype(np.float16)
-            manager = HDF5Manager(output_file, mode='w')
+            manager = HDF5Manager(output_file, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
             for sample in initial_data:
                 manager.append_data(sample)
@@ -140,7 +140,7 @@ class TestHDF5Merging:
             # Create input files
             data1 = np.random.rand(3, 4, 8).astype(np.float16)
             filepath = input_dir / "file1.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
             for sample in data1:
                 manager.append_data(sample)
@@ -149,7 +149,7 @@ class TestHDF5Merging:
             merge_hdf5_files(input_dir, output_file)
 
             # Verify
-            manager = HDF5Manager(output_file, mode='r')
+            manager = HDF5Manager(output_file, mode="r")
             merged_data = manager.read_dataset()
             assert merged_data.shape == (5, 4, 8)  # 2+3 = 5
 
@@ -166,7 +166,7 @@ class TestHDF5Merging:
 
             for i, (data, shape) in enumerate([(data1, (0, 4, 8)), (data2, (0, 4, 16))], 1):
                 filepath = input_dir / f"file{i}.h5"
-                manager = HDF5Manager(filepath, mode='w')
+                manager = HDF5Manager(filepath, mode="w")
                 manager.create_dataset_with_metadata(shape=shape)
                 for sample in data:
                     manager.append_data(sample)

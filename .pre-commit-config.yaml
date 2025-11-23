@@ -1,0 +1,92 @@
+# Pre-commit configuration for LoKI project
+# See https://pre-commit.com for more information
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=5000]  # Prevent large files (excluding models)
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: detect-private-key
+
+  # Python code formatting with Black
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.12
+        args: [--line-length=100]
+
+  # Python linting with Ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.15
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # Type checking with Mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-tqdm
+        args: [--ignore-missing-imports, --python-version=3.12]
+        files: ^src/
+        exclude: ^tests/
+
+  # Check Python docstrings
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        args: [--convention=google, --add-ignore=D100,D101,D102,D103,D104,D105,D107]
+        files: ^src/
+        exclude: ^(tests/|scripts/)
+
+  # Security checks with Bandit
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml]
+        additional_dependencies: ["bandit[toml]"]
+        files: ^src/
+        exclude: ^tests/
+
+# Configuration
+default_language_version:
+  python: python3.12
+
+# Exclude certain paths
+exclude: |
+  (?x)^(
+      \.venv/|
+      \.git/|
+      \.mypy_cache/|
+      \.pytest_cache/|
+      __pycache__/|
+      build/|
+      dist/|
+      \.eggs/|
+      notebooks/deprecated/|
+      kva_result/|
+      models/.*\.safetensors|
+      .*\.h5$|
+      .*\.bin$|
+      .*\.pyc$
+  )$
+
+# Global settings
+fail_fast: false

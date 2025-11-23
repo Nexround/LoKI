@@ -27,7 +27,6 @@ from loki import create_loki_model
 from loki.models import (
     get_loki_config_class,
     get_loki_model_class,
-    list_registered_architectures,
 )
 from loki.utils.logging_config import setup_logger
 

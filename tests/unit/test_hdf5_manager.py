@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
-
 from loki.utils.hdf5_manager import HDF5Manager
 
 
@@ -20,25 +19,25 @@ class TestHDF5ManagerInit:
             filepath = Path(tmpdir) / "test.h5"
 
             # Write mode
-            manager = HDF5Manager(filepath, mode='w')
-            assert manager.mode == 'w'
+            manager = HDF5Manager(filepath, mode="w")
+            assert manager.mode == "w"
             assert manager.filepath == filepath
 
             # Append mode
-            manager = HDF5Manager(filepath, mode='a')
-            assert manager.mode == 'a'
+            manager = HDF5Manager(filepath, mode="a")
+            assert manager.mode == "a"
 
     def test_init_invalid_mode(self):
         """Test initialization with invalid mode."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
             with pytest.raises(ValueError, match="Invalid mode"):
-                HDF5Manager(filepath, mode='x')
+                HDF5Manager(filepath, mode="x")
 
     def test_init_read_nonexistent_file(self):
         """Test read mode with nonexistent file."""
         with pytest.raises(FileNotFoundError):
-            HDF5Manager("/nonexistent/file.h5", mode='r')
+            HDF5Manager("/nonexistent/file.h5", mode="r")
 
 
 class TestHDF5ManagerCreateDataset:
@@ -48,12 +47,9 @@ class TestHDF5ManagerCreateDataset:
         """Test basic dataset creation."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
 
-            manager.create_dataset_with_metadata(
-                shape=(0, 32, 4096),
-                dtype=np.float16
-            )
+            manager.create_dataset_with_metadata(shape=(0, 32, 4096), dtype=np.float16)
 
             # Verify dataset was created
             shape = manager.get_shape()
@@ -64,7 +60,7 @@ class TestHDF5ManagerCreateDataset:
         """Test dataset creation with metadata."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
 
             metadata = {
                 "model_name": "example/model",
@@ -75,10 +71,7 @@ class TestHDF5ManagerCreateDataset:
                 "ig_method": "riemann_trapezoid",
             }
 
-            manager.create_dataset_with_metadata(
-                shape=(0, 32, 4096),
-                metadata=metadata
-            )
+            manager.create_dataset_with_metadata(shape=(0, 32, 4096), metadata=metadata)
 
             # Verify metadata was stored
             loaded_metadata = manager.read_metadata()
@@ -94,11 +87,11 @@ class TestHDF5ManagerCreateDataset:
             filepath = Path(tmpdir) / "test.h5"
 
             # Create file first
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 10, 20))
 
             # Try to create in read mode
-            manager_ro = HDF5Manager(filepath, mode='r')
+            manager_ro = HDF5Manager(filepath, mode="r")
             with pytest.raises(RuntimeError, match="read-only mode"):
                 manager_ro.create_dataset_with_metadata(shape=(0, 10, 20))
 
@@ -110,7 +103,7 @@ class TestHDF5ManagerAppendData:
         """Test appending NumPy arrays."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
 
             # Append data
@@ -130,7 +123,7 @@ class TestHDF5ManagerAppendData:
         """Test appending PyTorch tensors."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
 
             # Append tensor
@@ -145,7 +138,7 @@ class TestHDF5ManagerAppendData:
         """Test appending list of tensors (stacked)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
 
             # Append list of tensors
@@ -160,7 +153,7 @@ class TestHDF5ManagerAppendData:
         """Test error when appending data with wrong shape."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
 
             # Try to append wrong shape
@@ -172,7 +165,7 @@ class TestHDF5ManagerAppendData:
         """Test error when appending without creating dataset first."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
 
             # Try to append without creating dataset
             data = np.random.rand(4, 8)
@@ -187,7 +180,7 @@ class TestHDF5ManagerReadData:
         """Test reading complete dataset."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
 
             # Write data
@@ -203,7 +196,7 @@ class TestHDF5ManagerReadData:
         """Test reading dataset slice."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
 
             # Write data
@@ -218,7 +211,7 @@ class TestHDF5ManagerReadData:
         """Test reading specific layer."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             manager.create_dataset_with_metadata(shape=(0, 4, 8))
 
             # Write data
@@ -233,12 +226,13 @@ class TestHDF5ManagerReadData:
         """Test error when reading from file without dataset."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
             # Don't create dataset
 
             # Create empty file
             import h5py
-            with h5py.File(filepath, 'w'):
+
+            with h5py.File(filepath, "w"):
                 pass
 
             with pytest.raises(KeyError, match="not found"):
@@ -252,20 +246,16 @@ class TestHDF5ManagerMetadata:
         """Test updating metadata."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
 
             # Create with initial metadata
             initial_meta = {"version": "1.0", "author": "test"}
-            manager.create_dataset_with_metadata(
-                shape=(0, 4, 8),
-                metadata=initial_meta
-            )
+            manager.create_dataset_with_metadata(shape=(0, 4, 8), metadata=initial_meta)
 
             # Update metadata
-            manager.update_metadata({
-                "version": 2.0,  # Will be stored as number, not string
-                "processed_samples": 100
-            })
+            manager.update_metadata(
+                {"version": 2.0, "processed_samples": 100}  # Will be stored as number, not string
+            )
 
             # Verify
             meta = manager.read_metadata()
@@ -277,18 +267,15 @@ class TestHDF5ManagerMetadata:
         """Test metadata with dict and list values."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
 
             metadata = {
                 "config": {"lr": 0.001, "epochs": 10},
                 "layers": [1, 2, 3, 4, 5],
-                "name": "test_model"
+                "name": "test_model",
             }
 
-            manager.create_dataset_with_metadata(
-                shape=(0, 4, 8),
-                metadata=metadata
-            )
+            manager.create_dataset_with_metadata(shape=(0, 4, 8), metadata=metadata)
 
             # Verify complex types are preserved
             loaded_meta = manager.read_metadata()
@@ -310,7 +297,7 @@ class TestHDF5ManagerMerge:
             # Create input files
             for i in range(3):
                 filepath = input_dir / f"file{i}.h5"
-                manager = HDF5Manager(filepath, mode='w')
+                manager = HDF5Manager(filepath, mode="w")
                 manager.create_dataset_with_metadata(shape=(0, 4, 8))
                 for _ in range(5):
                     manager.append_data(np.random.rand(4, 8))
@@ -319,7 +306,7 @@ class TestHDF5ManagerMerge:
             HDF5Manager.merge_files(input_dir, output_file)
 
             # Verify
-            manager = HDF5Manager(output_file, mode='r')
+            manager = HDF5Manager(output_file, mode="r")
             assert manager.get_shape() == (15, 4, 8)  # 3 files * 5 samples
 
     def test_merge_custom_pattern(self):
@@ -332,7 +319,7 @@ class TestHDF5ManagerMerge:
             # Create .hdf5 files
             for i in range(2):
                 filepath = input_dir / f"data{i}.hdf5"
-                manager = HDF5Manager(filepath, mode='w')
+                manager = HDF5Manager(filepath, mode="w")
                 manager.create_dataset_with_metadata(shape=(0, 4, 8))
                 manager.append_data(np.random.rand(4, 8))
 
@@ -340,7 +327,7 @@ class TestHDF5ManagerMerge:
             HDF5Manager.merge_files(input_dir, output_file, pattern="*.hdf5")
 
             # Verify
-            manager = HDF5Manager(output_file, mode='r')
+            manager = HDF5Manager(output_file, mode="r")
             assert manager.get_shape()[0] == 2
 
 
@@ -351,7 +338,7 @@ class TestHDF5ManagerRepr:
         """Test __repr__ method."""
         with tempfile.TemporaryDirectory() as tmpdir:
             filepath = Path(tmpdir) / "test.h5"
-            manager = HDF5Manager(filepath, mode='w')
+            manager = HDF5Manager(filepath, mode="w")
 
             repr_str = repr(manager)
             assert "HDF5Manager" in repr_str

@@ -8,15 +8,14 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "integration: mark test as integration test (requires models)"
     )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow (may take minutes)"
-    )
+    config.addinivalue_line("markers", "slow: mark test as slow (may take minutes)")
 
 
 @pytest.fixture
 def sample_attribution_scores():
     """Provide sample attribution scores for testing."""
     import numpy as np
+
     np.random.seed(42)
     # 20 inferences, 8 layers, 16 nodes per layer
     return np.random.rand(20, 8, 16)
