@@ -17,6 +17,18 @@ Our work bridges the mechanistic insights of LLMs' knowledge storage with practi
 
 ## Usage
 
+### How LoKI Works
+
+LoKI's training implementation replaces the standard FFN (Feed-Forward Network) down-projection layers in transformer models with a custom `LoKILinear` module. This modified model is then packaged in Hugging Face's standard format, making it fully compatible with the Hugging Face ecosystem for both inference and training operations.
+
+The `LoKILinear` layer splits each down-projection weight matrix into two parts:
+- **Active weights**: Trainable parameters at selected neuron positions (determined by KVA analysis)
+- **Frozen weights**: Fixed parameters at all other positions
+
+This architecture enables seamless integration with existing training frameworks (like LlamaFactory) and inference pipelines, while ensuring only knowledge-bearing neurons are updated during fine-tuning.
+
+---
+
 This project uses **uv** for dependency management. The training workflow is based on **Llama-Factory**.
 
 ### Setup
@@ -87,7 +99,6 @@ The LoKI workflow consists of three phases:
 
 The current code uses **Captum's LayerIntegratedGradients** for the KVA process and supports Qwen2.5 and Llama series models.
 
-**✨ New**: Multi-GPU and batch processing support! See [Parallel Analysis Guide](docs/PARALLEL_ANALYSIS_GUIDE.md) for details.
 
 ### Quick Start
 
@@ -145,7 +156,6 @@ uv run accelerate launch --num_processes 4 --mixed_precision bf16
 
 # Multi-GPU model parallelism (model layers across GPUs)
 uv run python scripts/analyse_mmlu.py
-    --model_type llama
     --model_path meta-llama/Llama-3.1-8B-Instruct
     --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct
     --batch_size 4
@@ -157,9 +167,6 @@ uv run python scripts/analyse_mmlu.py
 
 **Output**: HDF5 file containing attribution scores in `kva_result/hdf5/<model_name>/kva_mmlu.h5`
 
-**📖 Full Documentation**:
-- [Parallel Analysis Guide](docs/PARALLEL_ANALYSIS_GUIDE.md) - Detailed usage and performance tips
-- [Parallel Features Summary](docs/PARALLEL_FEATURES.md) - Quick reference
 
 ---
 
@@ -212,11 +219,10 @@ uv run loki create-model
     --target-pos-path kva_result/pos_json/Llama-3.1-8B-Instruct/10.json
     --save-dir models/loki_llama_10
 
-# Qwen
+# Qwen (model-type auto-inferred)
 uv run loki create-model
-    --model-type qwen
     --model-name Qwen/Qwen2.5-0.5B-Instruct
-    --target_pos_path kva_result/pos_json/Qwen2.5-0.5B-Instruct/10.json
+    --target-pos-path kva_result/pos_json/Qwen2.5-0.5B-Instruct/10.json
     --save_dir models/loki_qwen_10
 ```
 
@@ -273,7 +279,7 @@ All functionality is also available as Python API:
 
 ```python
 # Selection
-from src.loki.selection import (
+from loki.selection import (
     select_trainable_nodes_layer_balanced,
     load_attributions_from_hdf5,
     save_positions_to_json,
@@ -284,7 +290,7 @@ positions = select_trainable_nodes_layer_balanced(scores, quota=10.0)
 save_positions_to_json(positions, "kva_result/pos_json/model/10.json")
 
 # Model creation
-from src.loki import create_loki_model, restore_loki_model
+from loki import create_loki_model, restore_loki_model
 
 create_loki_model(
     model_name="meta-llama/Llama-3.1-8B-Instruct",
@@ -318,9 +324,9 @@ make typecheck  # Type check with mypy
 LoKI/
 ├── src/loki/
 │   ├── core/              # Base classes and LoKILinear
-│   ├── models/            # Model implementations
-│   │   ├── llama/         # Llama LoKI/KVA models
-│   │   └── qwen/          # Qwen LoKI/KVA models
+│   ├── models/            # Architecture registry
+│   │   ├── __init__.py    # Registry exports
+│   │   └── registry.py    # Dynamic model class generation
 │   ├── selection/         # Node selection strategies
 │   ├── utils/             # Utilities (logging, HDF5, etc.)
 │   └── cli.py             # CLI entry point
