@@ -45,15 +45,6 @@ uv sync
 uv pip install llama-factory
 ```
 
-### Run tests
-
-```bash
-# Unit tests
-uv run pytest tests/unit -q
-
-# Integration (lightweight, uses init_empty_weights for real model configs)
-uv run pytest tests/integration -q
-```
 
 ### CLI
 
@@ -93,6 +84,41 @@ The LoKI workflow consists of three phases:
 2. **Select**: Choose trainable neurons based on attribution scores.
 3. **Implant**: Fine-tune only selected neurons with LlamaFactory.
 
+```mermaid
+flowchart TD
+    Start([Pretrained Model]) --> Phase1[Phase 1: KVA Analysis]
+
+    Phase1 --> A1[Load Model & MMLU Dataset]
+    A1 --> A2[Compute Integrated Gradients<br/>for down_proj layers]
+    A2 --> A3[Save Attribution Scores<br/>to HDF5 file]
+
+    A3 --> Phase2[Phase 2: Node Selection]
+
+    Phase2 --> B1{Selection Strategy}
+    B1 -->|Layer-Balanced| B2[Equal distribution<br/>across layers]
+    B1 -->|Global Lowest| B3[Lowest attribution<br/>globally]
+    B1 -->|Global Highest| B4[Highest attribution<br/>globally]
+
+    B2 --> B5[Generate Position JSON]
+    B3 --> B5
+    B4 --> B5
+
+    B5 --> Phase3[Phase 3: Training Implanting]
+
+    Phase3 --> C1[Create LoKI Model:<br/>Replace down_proj with LoKILinear]
+    C1 --> C2[Split Weights:<br/>Active trainable vs Frozen fixed]
+    C2 --> C3[Fine-tune with LlamaFactory<br/>Only active neurons update]
+    C3 --> C4[Restore Model:<br/>Merge weights back to standard format]
+
+    C4 --> End([Fine-tuned Model<br/>with Preserved Knowledge])
+
+    style Phase1 fill:#e1f5ff
+    style Phase2 fill:#fff4e1
+    style Phase3 fill:#e8f5e9
+    style Start fill:#f3e5f5
+    style End fill:#f3e5f5
+```
+
 ---
 
 ## Phase 1: KVA Analysis
@@ -107,18 +133,18 @@ The current code uses **Captum's LayerIntegratedGradients** for the KVA process 
 make analysing_mmlu_qwen
 make analysing_mmlu_llama
 
-# NEW: Batch processing (2-4x faster, single GPU)
+# Batch processing (2-4x faster, single GPU)
 make analysing_mmlu_qwen_batch
 make analysing_mmlu_llama_batch
 
-# NEW: Multi-GPU data parallelism (linear scaling)
+# Multi-GPU data parallelism (linear scaling)
 make analysing_mmlu_qwen_data_parallel
 make analysing_mmlu_llama_data_parallel
 
-# NEW: Model parallelism (for large models)
+# Model parallelism (for large models)
 make analysing_mmlu_llama_model_parallel
 
-# NEW: Quick test (10 samples per subset)
+# Quick test (10 samples per subset)
 make test_analyse_qwen
 make test_analyse_llama
 ```
@@ -132,10 +158,10 @@ uv run accelerate launch --mixed_precision bf16 scripts/analyse_mmlu.py
     --output_dir kva_result/hdf5/Llama-3.1-8B-Instruct
     --result_file kva_mmlu.h5
     --write_mode w
-    --max_samples_per_subset 50  # NEW: limit samples per subset
+    --max_samples_per_subset 50  # limit samples per subset
 ```
 
-**NEW: Parallel script** (batch + multi-GPU support):
+**Parallel script** (batch + multi-GPU support):
 ```bash
 # Single GPU with batch processing (4x faster)
 uv run python scripts/analyse_mmlu.py
