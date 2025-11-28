@@ -19,13 +19,13 @@ Our work bridges the mechanistic insights of LLMs' knowledge storage with practi
 
 ### How LoKI Works
 
-LoKI's training implementation replaces the standard FFN (Feed-Forward Network) down-projection layers in transformer models with a custom `LoKILinear` module. This modified model is then packaged in Hugging Face's standard format, making it fully compatible with the Hugging Face ecosystem for both inference and training operations.
+This repository provides a complete pipeline for implementing LoKI, but **does not directly provide training tools**. Instead, we delegate training to existing mature frameworks. The core functionality is **model conversion**: you can transform a standard Hugging Face model into a LoKI-modified model using `LoKILinear`, which can then be fine-tuned using **any training pipeline that supports Hugging Face models** (e.g., LlamaFactory).
+
+LoKI replaces the standard FFN (Feed-Forward Network) down-projection layers in transformer models with a custom `LoKILinear` module. The modified model is packaged in Hugging Face's standard format, ensuring full compatibility with the Hugging Face ecosystem for both inference and training operations.
 
 The `LoKILinear` layer splits each down-projection weight matrix into two parts:
 - **Active weights**: Trainable parameters at selected neuron positions (determined by KVA analysis)
 - **Frozen weights**: Fixed parameters at all other positions
-
-This architecture enables seamless integration with existing training frameworks (like LlamaFactory) and inference pipelines, while ensuring only knowledge-bearing neurons are updated during fine-tuning.
 
 ---
 
@@ -80,9 +80,9 @@ After `uv sync`, the `loki` console script is available. Use `uv run loki --help
 
 The LoKI workflow consists of three phases:
 
-1. **Analyse (KVA)**: Identify knowledge-bearing neurons using integrated gradients.
-2. **Select**: Choose trainable neurons based on attribution scores.
-3. **Implant**: Fine-tune only selected neurons with LlamaFactory.
+1. **Analysing**: Evaluate the contribution of each knowledge vector to general tasks..
+2. **Selecting**: Choose trainable knowledge vectors within each FFN based on the analysis results.
+3. **Implanting**: Train the chosen vectors to incorporate task-specific knowledge.
 
 ```mermaid
 flowchart TD
